@@ -54,24 +54,37 @@
               <div v-else>
                 <!-- 拟合配置区 -->
                 <div class="row items-center q-col-gutter-md q-mb-md">
-                  <q-select
-                    v-model="trendType"
-                    :options="trendOptions"
-                    label="趋势类型"
-                    dense
-                    emit-value
-                    map-options
-                    style="min-width: 150px"
-                  />
-                  <q-input
-                    v-if="trendType === 'Polynomial'"
-                    v-model.number="polyDegree"
-                    label="多项式阶数"
-                    type="number"
-                    dense
-                    style="width: 100px"
-                  />
-                  <q-btn label="重新计算" color="primary" dense @click="computeFit" />
+                  <div class="col">
+                    <q-select
+                      v-model="trendType"
+                      :options="trendOptions"
+                      label="趋势类型"
+                      dense
+                      emit-value
+                      map-options
+                      style="min-width: 150px"
+                    />
+                  </div>
+                  <div class="col-auto" v-if="trendType === 'Polynomial'">
+                    <q-input
+                      v-model.number="polyDegree"
+                      label="多项式阶数"
+                      type="number"
+                      dense
+                      style="width: 100px"
+                    />
+                  </div>
+                  <div class="col-auto">
+                    <q-btn label="重新计算" color="primary" dense @click="computeFit" />
+                  </div>
+                  <div class="col-auto">
+                    <q-btn
+                      label="保存矫正曲线"
+                      color="secondary"
+                      dense
+                      @click="saveCalibrationCurve"
+                    />
+                  </div>
                 </div>
                 <q-separator />
 
@@ -640,6 +653,58 @@ async function calibratePoint(idx: number) {
     console.error('Failed to calibrate point:', error);
   } finally {
     calibrating.value[idx] = false;
+  }
+}
+
+// 保存矫正曲线 - 将拟合公式转换为距离公式格式
+async function saveCalibrationCurve() {
+  try {
+    // 解析当前的拟合公式，例如：y = 198.73x^-1.01
+    const equationStr = equation.value;
+
+    // 使用正则表达式提取系数和指数
+    // 匹配格式：y = ax^b 或 y = a * x^b
+    const match = equationStr.match(/y\s*=\s*([0-9.-]+)(?:\s*\*\s*)?x\^?([0-9.-]+)/);
+
+    if (match && match[1] && match[2]) {
+      const coefficient = parseFloat(match[1]); // 系数 a
+      const exponent = parseFloat(match[2]); // 指数 b
+
+      console.log(`Parsed equation: coefficient=${coefficient}, exponent=${exponent}`);
+
+      // 转换为 ((A/x)**(1/B))*C 的格式
+      // 对于 y = ax^b，转换为 ((A/x)**(1/(-b)))*C
+      // 其中 A 和 C 需要根据系数计算
+
+      if (exponent < 0) {
+        // 对于负指数，如 y = ax^(-b)
+        const A = Math.pow(coefficient, 1 / Math.abs(exponent));
+        const B = Math.abs(exponent);
+        const C = 1;
+
+        const convertedFormula = `((${A.toFixed(2)}/x)**(1/${B.toFixed(3)}))*${C}`;
+
+        // 保存到配置
+        await saveConfig('Formula', convertedFormula);
+
+        // 同时更新本地的formula变量
+        formula.value = convertedFormula;
+
+        console.log(`Converted formula saved: ${convertedFormula}`);
+
+        // 可以显示成功消息
+        alert(`矫正曲线已保存：${convertedFormula}`);
+      } else {
+        console.error('Cannot convert positive exponent to distance formula format');
+        alert('无法转换正指数公式，请使用幂函数拟合');
+      }
+    } else {
+      console.error('Failed to parse equation:', equationStr);
+      alert('无法解析拟合公式，请确保公式格式正确');
+    }
+  } catch (error) {
+    console.error('Failed to save calibration curve:', error);
+    alert('保存矫正曲线失败');
   }
 }
 
