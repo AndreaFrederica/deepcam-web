@@ -16,7 +16,7 @@
             <q-card-section>
               <div class="text-subtitle2">Processed Stream</div>
               <img
-                :src="`http://${server}/video/processed?formula=${encodeURIComponent(formula)}`"
+                :src="`/video/processed?formula=${encodeURIComponent(formula)}`"
                 width="100%"
                 alt="Processed"
               />
@@ -24,7 +24,7 @@
             <q-separator />
             <q-card-section>
               <div class="text-subtitle2">Mask Stream</div>
-              <img :src="`http://${server}/video/mask`" width="100%" alt="Mask" />
+              <img :src="`/video/mask`" width="100%" alt="Mask" />
             </q-card-section>
           </q-expansion-item>
         </q-card>
@@ -33,12 +33,7 @@
       <!-- 控件区 -->
       <div class="col-6">
         <q-card flat bordered class="q-pa-md">
-          <!-- 距离公式 -->
-          <div class="text-subtitle2 q-mb-sm">Distance Formula</div>
-          <q-input v-model="formula" label="Formula" dense clearable />
-
           <!-- 物理测量 -->
-          <q-separator class="q-my-md" />
           <div class="text-subtitle2">Physical Measurements</div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn
@@ -227,99 +222,6 @@
             <div>Inner: {{ r.inner_width }}×{{ r.inner_height }} (area {{ r.inner_area }}px)</div>
             <div>Info: {{ r.inner_info }}</div>
           </div>
-
-          <q-separator class="q-my-lg" />
-
-          <!-- 设置控制面板 -->
-          <q-expansion-item icon="settings" label="Settings" header-class="text-primary">
-            <div class="q-pa-sm">
-              <!-- HSV 范围 1 -->
-              <div class="text-subtitle2">HSV Range 1</div>
-              <div
-                v-for="id in ['h1_min', 'h1_max', 's1_min', 's1_max', 'v1_min', 'v1_max']"
-                :key="id"
-                class="q-mt-sm"
-              >
-                <label>
-                  {{ id.toUpperCase() }}:
-                  <q-slider
-                    v-model="hsv[id]"
-                    :min="id.startsWith('h') ? 0 : 0"
-                    :max="id.startsWith('h') ? 179 : 255"
-                    @update:model-value="postConfig"
-                  />
-                  <span>{{ hsv[id] }}</span>
-                </label>
-              </div>
-
-              <!-- HSV 范围 2 -->
-              <div class="q-mt-lg">
-                <q-checkbox
-                  v-model="hsv.use_range2"
-                  label="Enable Range 2"
-                  @update:model-value="postConfig"
-                />
-              </div>
-              <div v-if="hsv.use_range2" class="q-mt-sm">
-                <div
-                  v-for="id in ['h2_min', 'h2_max', 's2_min', 's2_max', 'v2_min', 'v2_max']"
-                  :key="id"
-                  class="q-mt-sm"
-                >
-                  <label>
-                    {{ id.toUpperCase() }}:
-                    <q-slider
-                      v-model="hsv[id]"
-                      :min="id.startsWith('h') ? 0 : 0"
-                      :max="id.startsWith('h') ? 179 : 255"
-                      @update:model-value="postConfig"
-                    />
-                    <span>{{ hsv[id] }}</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Min Area -->
-              <div class="q-mt-lg">
-                <label>
-                  Min Area:
-                  <q-input
-                    v-model.number="controls.min_area"
-                    type="number"
-                    @update:model-value="postConfig"
-                    dense
-                  />
-                </label>
-              </div>
-
-              <!-- Canny -->
-              <div class="text-subtitle2 q-mt-lg">Canny</div>
-              <div class="q-mt-sm">
-                <label>
-                  Canny Min:
-                  <q-slider
-                    v-model="controls.canny_min"
-                    :min="0"
-                    :max="255"
-                    @update:model-value="postConfig"
-                  />
-                  <span>{{ controls.canny_min }}</span>
-                </label>
-              </div>
-              <div class="q-mt-sm">
-                <label>
-                  Canny Max:
-                  <q-slider
-                    v-model="controls.canny_max"
-                    :min="0"
-                    :max="255"
-                    @update:model-value="postConfig"
-                  />
-                  <span>{{ controls.canny_max }}</span>
-                </label>
-              </div>
-            </div>
-          </q-expansion-item>
         </q-card>
       </div>
     </div>
@@ -327,7 +229,6 @@
 </template>
 
 <script setup lang="ts">
-import { server } from 'src/constant/url';
 import { reactive, ref, onMounted } from 'vue';
 
 // 距离公式
@@ -357,52 +258,6 @@ const minSquareLoading = ref(false);
 const ocrTargetText = ref('');
 const ocrLoading = ref(false);
 const ocrElapsedTime = ref(0);
-
-onMounted(() => {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${server}/ws`);
-
-  ws.onmessage = (e) => {
-    const s = JSON.parse(e.data);
-    // 更新统计
-    stats.count = s.count;
-    stats.total_pixels = s.total_pixels;
-    stats.frame_ratio = s.frame_ratio;
-    stats.black_ratio = s.black_ratio;
-    stats.fps = s.fps;
-
-    // 新推送的 rect id 集合
-    const incoming = s.rects as any[];
-    const newIds = new Set(incoming.map((r) => r.id));
-
-    // ① 添加或更新
-    incoming.forEach((r) => {
-      const idx = displayedRects.value.findIndex((x) => x.id === r.id);
-      if (idx === -1) {
-        displayedRects.value.push(r);
-      } else {
-        displayedRects.value[idx] = r;
-      }
-      // 取消可能存在的删除定时
-      if (removalTimers.has(r.id)) {
-        clearTimeout(removalTimers.get(r.id));
-        removalTimers.delete(r.id);
-      }
-    });
-
-    // ② 对不再出现的 rect 延迟 100ms 清除
-    displayedRects.value.slice().forEach((r) => {
-      if (!newIds.has(r.id) && !removalTimers.has(r.id)) {
-        const tid = window.setTimeout(() => {
-          const j = displayedRects.value.findIndex((x) => x.id === r.id);
-          if (j !== -1) displayedRects.value.splice(j, 1);
-          removalTimers.delete(r.id);
-        }, 100);
-        removalTimers.set(r.id, tid);
-      }
-    });
-  };
-});
 
 // 计算距离：将 x,y 互换后使用公式
 function computeDistance(px: number) {
@@ -565,41 +420,94 @@ async function getOcrMeasurements() {
   }
 }
 
-// 控件状态
-const hsv = reactive<any>({
-  h1_min: 0,
-  h1_max: 179,
-  s1_min: 0,
-  s1_max: 255,
-  v1_min: 0,
-  v1_max: 85,
-  use_range2: false,
-  h2_min: 0,
-  h2_max: 179,
-  s2_min: 0,
-  s2_max: 255,
-  v2_min: 0,
-  v2_max: 85,
+onMounted(async () => {
+  // 加载距离公式配置
+  try {
+    const formulaResponse = await fetch('/config/custom_string?key=distance_formula');
+    if (formulaResponse.ok) {
+      const formulaData = await formulaResponse.json();
+      if (formulaData.success && formulaData.value) {
+        formula.value = formulaData.value;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading formula configuration:', error);
+  }
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const wsUrl = `${proto}://${location.host}/ws`;
+  const ws = new WebSocket(wsUrl);
+
+  ws.onmessage = (e) => {
+    const s = JSON.parse(e.data);
+    // 更新统计
+    stats.count = s.count;
+    stats.total_pixels = s.total_pixels;
+    stats.frame_ratio = s.frame_ratio;
+    stats.black_ratio = s.black_ratio;
+    stats.fps = s.fps;
+
+    // 新推送的 rect id 集合
+    const incoming = s.rects as any[];
+    const newIds = new Set(incoming.map((r) => r.id));
+
+    // ① 添加或更新
+    incoming.forEach((r) => {
+      const idx = displayedRects.value.findIndex((x) => x.id === r.id);
+      if (idx === -1) {
+        displayedRects.value.push(r);
+      } else {
+        displayedRects.value[idx] = r;
+      }
+      // 取消可能存在的删除定时
+      if (removalTimers.has(r.id)) {
+        clearTimeout(removalTimers.get(r.id));
+        removalTimers.delete(r.id);
+      }
+    });
+
+    // ② 对不再出现的 rect 延迟 100ms 清除
+    displayedRects.value.slice().forEach((r) => {
+      if (!newIds.has(r.id) && !removalTimers.has(r.id)) {
+        const tid = window.setTimeout(() => {
+          const j = displayedRects.value.findIndex((x) => x.id === r.id);
+          if (j !== -1) displayedRects.value.splice(j, 1);
+          removalTimers.delete(r.id);
+        }, 100);
+        removalTimers.set(r.id, tid);
+      }
+    });
+  };
 });
-const controls = reactive<any>({ min_area: 200, canny_min: 50, canny_max: 150 });
-
-// 每次滑条或输入变化都 POST 到后端
-function postConfig() {
-  void fetch('/control/hsv', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(hsv),
-  });
-  void fetch('/control/canny', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(controls),
-  });
-}
-
-// 初始推送一次默认值
-postConfig();
 </script>
+
+// 保存配置 async function saveConfigurations() { try { // 保存 HSV 配置 await
+fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ key: 'hsv_settings', value: JSON.stringify(hsv), }), }); // 保存控制配置
+await fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type': 'application/json'
+}, body: JSON.stringify({ key: 'control_settings', value: JSON.stringify(controls), }), }); //
+保存距离公式 await fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type':
+'application/json' }, body: JSON.stringify({ key: 'distance_formula', value: formula.value, }), });
+} catch (error) { console.error('Error saving configurations:', error); } } // 保存距离公式 async
+function saveDistanceFormula() { try { await fetch('/config/custom_string', { method: 'POST',
+headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'distance_formula',
+value: formula.value, }), }); } catch (error) { console.error('Error saving distance formula:',
+error); } } // 删除服务端配置 async function deleteConfigurations() { try { // 删除 HSV 配置 await
+fetch('/config/custom_string?key=hsv_settings', { method: 'DELETE', }); // 删除控制配置 await
+fetch('/config/custom_string?key=control_settings', { method: 'DELETE', }); // 删除距离公式 await
+fetch('/config/custom_string?key=distance_formula', { method: 'DELETE', }); } catch (error) {
+console.error('Error deleting configurations:', error); } } // 重置到默认值 async function
+resetToDefault() { resetLoading.value = true; try { // 删除服务端配置 await deleteConfigurations();
+// 重置为 Vue 文件中的默认值 formula.value = '((524.38/x)**(1/1.003))*100'; Object.assign(hsv, {
+h1_min: 0, h1_max: 179, s1_min: 0, s1_max: 255, v1_min: 0, v1_max: 85, use_range2: false, h2_min: 0,
+h2_max: 179, s2_min: 0, s2_max: 255, v2_min: 0, v2_max: 85, }); Object.assign(controls, { min_area:
+200, canny_min: 50, canny_max: 150, }); // 将默认值发送到服务端并保存 postConfig();
+console.log('Settings reset to default values'); } catch (error) { console.error('Error resetting to
+default:', error); } finally { resetLoading.value = false; } } // 每次滑条或输入变化都 POST
+到后端并保存配置 function postConfig() { void fetch('/control/hsv', { method: 'POST', headers: {
+'Content-Type': 'application/json' }, body: JSON.stringify(hsv), }); void fetch('/control/canny', {
+method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(controls), });
+// 保存配置到持久化存储 void saveConfigurations(); }
 
 <style scoped>
 .container {

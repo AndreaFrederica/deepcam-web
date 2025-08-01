@@ -93,6 +93,22 @@ export default defineConfig((/* ctx */) => {
           target: 'http://192.168.33.215:8000',
           changeOrigin: true,
           secure: false,
+        },
+        '/video': {
+          target: 'http://192.168.33.215:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/config': {
+          target: 'http://192.168.33.215:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/ws': {
+          target: 'http://192.168.33.215:8000',
+          changeOrigin: true,
+          secure: false,
+          ws: true, // Enable WebSocket proxying
         }
       }
     },
