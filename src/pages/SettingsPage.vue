@@ -35,7 +35,16 @@
       </div>
 
       <!-- 右侧：设置卡片 -->
-      <div style="width: 50%; display: flex; flex-direction: column; gap: 16px">
+      <div
+        style="
+          width: 50%;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          overflow-y: auto;
+          height: 100%;
+        "
+      >
         <!-- 曲线拟合设置卡片 -->
         <q-card flat bordered>
           <q-expansion-item
@@ -147,15 +156,15 @@
           </q-expansion-item>
         </q-card>
 
-        <!-- 测距设置卡片 -->
+        <!-- HSV颜色检测设置卡片 -->
         <q-card flat bordered>
-          <q-expansion-item default-opened icon="tune" label="测距设置" header-class="text-primary">
+          <q-expansion-item icon="palette" label="HSV颜色检测设置" header-class="text-primary">
             <q-card-section>
               <!-- 距离公式 -->
-              <div class="text-subtitle2 q-mb-sm">Distance Formula</div>
+              <div class="text-subtitle2 q-mb-sm">距离公式</div>
               <q-input
                 v-model="formula"
-                label="Formula"
+                label="公式"
                 dense
                 clearable
                 @update:model-value="saveDistanceFormula"
@@ -164,21 +173,29 @@
               <q-separator class="q-my-md" />
 
               <!-- HSV 范围 1 -->
-              <div class="text-subtitle2">HSV Range 1</div>
+              <div class="text-subtitle2">HSV 范围 1</div>
               <div
                 v-for="id in ['h1_min', 'h1_max', 's1_min', 's1_max', 'v1_min', 'v1_max']"
                 :key="id"
                 class="q-mt-sm"
               >
-                <label>
+                <label class="text-caption">
                   {{ id.toUpperCase() }}:
                   <q-slider
-                    v-model="hsv[id]"
+                    :model-value="hsv[id as keyof HSVConfig] as number"
+                    @update:model-value="
+                      (val: number | null) => {
+                        if (val !== null) {
+                          (hsv as Record<string, number | boolean>)[id] = val;
+                          postConfig();
+                        }
+                      }
+                    "
                     :min="id.startsWith('h') ? 0 : 0"
                     :max="id.startsWith('h') ? 179 : 255"
-                    @update:model-value="postConfig"
+                    label
+                    label-always
                   />
-                  <span>{{ hsv[id] }}</span>
                 </label>
               </div>
 
@@ -186,80 +203,394 @@
               <div class="q-mt-lg">
                 <q-checkbox
                   v-model="hsv.use_range2"
-                  label="Enable Range 2"
+                  label="启用第二个HSV范围"
                   @update:model-value="postConfig"
                 />
               </div>
               <div v-if="hsv.use_range2" class="q-mt-sm">
+                <div class="text-subtitle2">HSV 范围 2</div>
                 <div
                   v-for="id in ['h2_min', 'h2_max', 's2_min', 's2_max', 'v2_min', 'v2_max']"
                   :key="id"
                   class="q-mt-sm"
                 >
-                  <label>
+                  <label class="text-caption">
                     {{ id.toUpperCase() }}:
                     <q-slider
-                      v-model="hsv[id]"
+                      :model-value="hsv[id as keyof HSVConfig] as number"
+                      @update:model-value="
+                        (val: number | null) => {
+                          if (val !== null) {
+                            (hsv as Record<string, number | boolean>)[id] = val;
+                            postConfig();
+                          }
+                        }
+                      "
                       :min="id.startsWith('h') ? 0 : 0"
                       :max="id.startsWith('h') ? 179 : 255"
-                      @update:model-value="postConfig"
+                      label
+                      label-always
                     />
-                    <span>{{ hsv[id] }}</span>
                   </label>
                 </div>
               </div>
 
-              <!-- Min Area -->
+              <!-- 最小面积 -->
               <div class="q-mt-lg">
-                <label>
-                  Min Area:
-                  <q-input
-                    v-model.number="controls.min_area"
-                    type="number"
-                    @update:model-value="postConfig"
-                    dense
-                  />
-                </label>
+                <div class="text-subtitle2">最小检测面积</div>
+                <q-input
+                  v-model.number="controls.min_area"
+                  type="number"
+                  label="最小面积"
+                  @update:model-value="postConfig"
+                  dense
+                />
               </div>
 
-              <!-- Canny -->
-              <div class="text-subtitle2 q-mt-lg">Canny</div>
+              <!-- Canny边缘检测 -->
+              <div class="text-subtitle2 q-mt-lg">Canny边缘检测</div>
               <div class="q-mt-sm">
-                <label>
-                  Canny Min:
+                <label class="text-caption">
+                  Canny 低阈值:
                   <q-slider
                     v-model="controls.canny_min"
                     :min="0"
                     :max="255"
                     @update:model-value="postConfig"
+                    label
+                    label-always
                   />
-                  <span>{{ controls.canny_min }}</span>
                 </label>
               </div>
               <div class="q-mt-sm">
-                <label>
-                  Canny Max:
+                <label class="text-caption">
+                  Canny 高阈值:
                   <q-slider
                     v-model="controls.canny_max"
                     :min="0"
                     :max="255"
                     @update:model-value="postConfig"
+                    label
+                    label-always
                   />
-                  <span>{{ controls.canny_max }}</span>
                 </label>
               </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
 
-              <!-- 重置按钮 -->
-              <div class="q-mt-lg">
-                <q-btn
-                  color="warning"
-                  outline
-                  label="Reset to Default"
-                  @click="resetToDefault"
-                  :loading="resetLoading"
-                  icon="refresh"
-                  class="full-width"
+        <!-- 面积过滤设置卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="filter_list" label="面积过滤设置" header-class="text-primary">
+            <q-card-section>
+              <div class="row q-col-gutter-md">
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.min_crop_area"
+                    type="number"
+                    label="最小裁剪面积"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.max_crop_area"
+                    type="number"
+                    label="最大裁剪面积"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+              </div>
+
+              <div class="q-mt-md">
+                <q-checkbox
+                  v-model="areaFilter.enable_area_filter"
+                  label="启用面积过滤"
+                  @update:model-value="updateAreaFilter"
                 />
+              </div>
+
+              <div class="q-mt-md">
+                <q-checkbox
+                  v-model="areaFilter.enable_a4_check"
+                  label="启用A4比例检查"
+                  @update:model-value="updateAreaFilter"
+                />
+              </div>
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.a4_ratio_tolerance"
+                    type="number"
+                    step="0.1"
+                    label="A4比例容差"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.max_circularity"
+                    type="number"
+                    step="0.1"
+                    label="最大圆形度"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+              </div>
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.min_solidity"
+                    type="number"
+                    step="0.1"
+                    label="最小实心度"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-input
+                    v-model.number="areaFilter.max_vertices"
+                    type="number"
+                    label="最大顶点数"
+                    dense
+                    @update:model-value="updateAreaFilter"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
+        <!-- 梯形校正设置卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="crop" label="梯形校正设置" header-class="text-primary">
+            <q-card-section>
+              <div class="q-mb-md">
+                <q-checkbox
+                  v-model="perspective.enable"
+                  label="启用梯形校正"
+                  @update:model-value="updatePerspective"
+                />
+              </div>
+
+              <div class="row q-col-gutter-md">
+                <div class="col-6">
+                  <q-input
+                    v-model.number="perspective.target_width"
+                    type="number"
+                    label="目标宽度 (mm)"
+                    dense
+                    @update:model-value="updatePerspective"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-input
+                    v-model.number="perspective.target_height"
+                    type="number"
+                    label="目标高度 (mm)"
+                    dense
+                    @update:model-value="updatePerspective"
+                  />
+                </div>
+              </div>
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-6">
+                  <q-input
+                    v-model.number="perspective.a4_ratio"
+                    type="number"
+                    step="0.1"
+                    label="A4比例"
+                    dense
+                    @update:model-value="updatePerspective"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-checkbox
+                    v-model="perspective.use_short_edge_for_measurement"
+                    label="使用短边测量"
+                    @update:model-value="updatePerspective"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
+        <!-- 黑色检测设置卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="contrast" label="黑色检测设置" header-class="text-primary">
+            <q-card-section>
+              <div class="text-subtitle2 q-mb-sm">HSV阈值设置</div>
+
+              <div class="row q-col-gutter-md">
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.lower_h"
+                    type="number"
+                    label="色调下限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.lower_s"
+                    type="number"
+                    label="饱和度下限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.lower_v"
+                    type="number"
+                    label="明度下限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+              </div>
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.upper_h"
+                    type="number"
+                    label="色调上限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.upper_s"
+                    type="number"
+                    label="饱和度上限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="blackDetection.upper_v"
+                    type="number"
+                    label="明度上限"
+                    dense
+                    @update:model-value="updateBlackDetection"
+                  />
+                </div>
+              </div>
+
+              <div class="q-mt-md">
+                <q-input
+                  v-model.number="blackDetection.morph_kernel_size"
+                  type="number"
+                  label="形态学核大小"
+                  dense
+                  @update:model-value="updateBlackDetection"
+                />
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
+        <!-- 摄像头设置卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="videocam" label="摄像头设置" header-class="text-primary">
+            <q-card-section>
+              <div class="row q-col-gutter-md">
+                <div class="col-4">
+                  <q-input
+                    v-model.number="camera.index"
+                    type="number"
+                    label="摄像头索引"
+                    dense
+                    @update:model-value="updateCamera"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="camera.width"
+                    type="number"
+                    label="分辨率宽度"
+                    dense
+                    @update:model-value="updateCamera"
+                  />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model.number="camera.height"
+                    type="number"
+                    label="分辨率高度"
+                    dense
+                    @update:model-value="updateCamera"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
+        <!-- 全局操作卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="settings" label="全局操作" header-class="text-primary">
+            <q-card-section>
+              <div class="row q-col-gutter-md">
+                <div class="col-6">
+                  <q-btn
+                    color="warning"
+                    outline
+                    label="重置为默认值"
+                    @click="resetAllToDefault"
+                    :loading="resetLoading"
+                    icon="refresh"
+                    class="full-width"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-btn
+                    color="positive"
+                    label="保存所有配置"
+                    @click="saveAllConfigs"
+                    :loading="saveLoading"
+                    icon="save"
+                    class="full-width"
+                  />
+                </div>
+              </div>
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-6">
+                  <q-btn
+                    color="info"
+                    outline
+                    label="加载配置"
+                    @click="loadAllConfigs"
+                    :loading="loadLoading"
+                    icon="download"
+                    class="full-width"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-btn
+                    color="secondary"
+                    outline
+                    label="显示状态"
+                    @click="toggleShowRectangles"
+                    :loading="showRectanglesLoading"
+                    icon="visibility"
+                    class="full-width"
+                  />
+                </div>
               </div>
             </q-card-section>
           </q-expansion-item>
@@ -273,6 +604,65 @@
 import { ref, computed, watch, onMounted, reactive } from 'vue';
 import CurveChart from 'components/CurveChart.vue';
 import regression from 'regression';
+
+// 类型定义
+interface HSVConfig {
+  h1_min: number;
+  h1_max: number;
+  s1_min: number;
+  s1_max: number;
+  v1_min: number;
+  v1_max: number;
+  h2_min: number;
+  h2_max: number;
+  s2_min: number;
+  s2_max: number;
+  v2_min: number;
+  v2_max: number;
+  use_range2: boolean;
+  [key: string]: number | boolean; // 索引签名支持动态访问
+}
+
+interface ControlsConfig {
+  min_area: number;
+  canny_min: number;
+  canny_max: number;
+}
+
+interface AreaFilterConfig {
+  min_crop_area: number;
+  max_crop_area: number;
+  enable_area_filter: boolean;
+  a4_ratio_tolerance: number;
+  max_circularity: number;
+  min_solidity: number;
+  max_vertices: number;
+  enable_a4_check: boolean;
+}
+
+interface PerspectiveConfig {
+  enable: boolean;
+  target_width: number;
+  target_height: number;
+  a4_ratio: number;
+  use_short_edge_for_measurement: boolean;
+}
+
+interface BlackDetectionConfig {
+  lower_h: number;
+  lower_s: number;
+  lower_v: number;
+  upper_h: number;
+  upper_s: number;
+  upper_v: number;
+  morph_kernel_size: number;
+}
+
+interface CameraConfig {
+  index: number;
+  width: number;
+  height: number;
+}
 
 // 拟合类型选项
 const trendOptions = [
@@ -289,7 +679,7 @@ const polyDegree = ref<number>(2);
 const formula = ref('((524.38/x)**(1/1.003))*100');
 
 // HSV 控制参数
-const hsv = reactive<any>({
+const hsv = reactive<HSVConfig>({
   h1_min: 0,
   h1_max: 179,
   s1_min: 0,
@@ -306,7 +696,7 @@ const hsv = reactive<any>({
 });
 
 // 控制参数
-const controls = reactive<any>({
+const controls = reactive<ControlsConfig>({
   min_area: 200,
   canny_min: 50,
   canny_max: 150,
@@ -314,28 +704,65 @@ const controls = reactive<any>({
 
 // 重置功能相关
 const resetLoading = ref(false);
+const saveLoading = ref(false);
+const loadLoading = ref(false);
+const showRectanglesLoading = ref(false);
 
 // 矫正功能相关
 const calibrating = ref<boolean[]>([]);
 
+// 面积过滤参数
+const areaFilter = reactive<AreaFilterConfig>({
+  min_crop_area: 20000,
+  max_crop_area: 5200000,
+  enable_area_filter: true,
+  a4_ratio_tolerance: 0.3,
+  max_circularity: 0.7,
+  min_solidity: 0.8,
+  max_vertices: 8,
+  enable_a4_check: true,
+});
+
+// 梯形校正参数
+const perspective = reactive<PerspectiveConfig>({
+  enable: true,
+  target_width: 210,
+  target_height: 297,
+  a4_ratio: 1.414285714285714,
+  use_short_edge_for_measurement: true,
+});
+
+// 黑色检测参数
+const blackDetection = reactive<BlackDetectionConfig>({
+  lower_h: 0,
+  lower_s: 0,
+  lower_v: 0,
+  upper_h: 255,
+  upper_s: 255,
+  upper_v: 80,
+  morph_kernel_size: 3,
+});
+
+// 摄像头参数
+const camera = reactive<CameraConfig>({
+  index: 0,
+  width: 1920,
+  height: 1080,
+});
+
 // 初始测距数据（默认值）
 const defaultPoints = [
-  { x: 0.5, y: 408 },
-  { x: 0.6, y: 338 },
-  { x: 0.7, y: 288 },
-  { x: 0.8, y: 251 },
-  { x: 0.9, y: 224 },
-  { x: 1.0, y: 200 },
-  { x: 1.1, y: 180 },
-  { x: 1.2, y: 165 },
-  { x: 1.3, y: 152 },
-  { x: 1.4, y: 142 },
-  { x: 1.5, y: 132 },
-  { x: 1.6, y: 124 },
-  { x: 1.7, y: 116 },
-  { x: 1.8, y: 111 },
-  { x: 1.9, y: 104 },
-  { x: 2.0, y: 99 },
+  { x: 1.0, y: 524.9 },
+  { x: 1.1, y: 477.2 },
+  { x: 1.2, y: 435.4 },
+  { x: 1.3, y: 402.7 },
+  { x: 1.4, y: 373.9 },
+  { x: 1.5, y: 349.6 },
+  { x: 1.6, y: 327.5 },
+  { x: 1.7, y: 307.6 },
+  { x: 1.8, y: 291.5 },
+  { x: 1.9, y: 275.5 },
+  { x: 2.0, y: 261.2 },
 ];
 
 const points = ref<{ x: number; y: number }[]>([]);
@@ -354,7 +781,7 @@ const r2 = ref<number>(0);
 // 拟合计算函数
 function computeFit() {
   const data: [number, number][] = sortedPoints.value.map((p) => [p.x, p.y]);
-  let result: any;
+  let result: { string: string; r2: number; predict: (x: number) => [number, number] };
 
   switch (trendType.value) {
     case 'Linear':
@@ -372,6 +799,9 @@ function computeFit() {
     case 'Polynomial':
       result = regression.polynomial(data, { order: polyDegree.value });
       break;
+    default:
+      result = regression.power(data);
+      break;
   }
 
   // 设置公式和R²
@@ -380,7 +810,7 @@ function computeFit() {
 
   // 更新拟合点
   fitResults.value = sortedPoints.value.map((p) => {
-    const yPred = (result.predict(p.x) as [number, number])[1];
+    const yPred = result.predict(p.x)[1];
     return { x: p.x, y: yPred };
   });
 
@@ -393,15 +823,20 @@ async function loadConfig() {
   try {
     configLoading.value = true;
 
-    // 获取所有配置
-    const response = await fetch('/config/custom_string');
-    const data = await response.json();
+    // 获取主配置
+    const configResponse = await fetch('/config');
+    const configData = await configResponse.json();
+
+    // 获取自定义配置
+    const customResponse = await fetch('/config/custom_string');
+    const customData = await customResponse.json();
 
     // 检查API响应结构
-    console.log('Config API Response:', data);
+    console.log('Config API Response:', configData);
+    console.log('Custom Config API Response:', customData);
 
     // 获取配置对象
-    const configs = data.success && data.custom_config ? data.custom_config : {};
+    const configs = customData.success && customData.custom_config ? customData.custom_config : {};
 
     // 加载趋势类型
     if (configs.trendType) {
@@ -436,12 +871,70 @@ async function loadConfig() {
     if (configs.hsv_settings) {
       const hsvConfig = JSON.parse(configs.hsv_settings);
       Object.assign(hsv, hsvConfig);
+    } else if (configData.detection_params) {
+      // 从主配置加载HSV设置
+      const detectionParams = configData.detection_params;
+      Object.assign(hsv, {
+        h1_min: detectionParams.h1_min || 0,
+        h1_max: detectionParams.h1_max || 179,
+        s1_min: detectionParams.s1_min || 0,
+        s1_max: detectionParams.s1_max || 255,
+        v1_min: detectionParams.v1_min || 0,
+        v1_max: detectionParams.v1_max || 85,
+        h2_min: detectionParams.h2_min || 0,
+        h2_max: detectionParams.h2_max || 179,
+        s2_min: detectionParams.s2_min || 0,
+        s2_max: detectionParams.s2_max || 255,
+        v2_min: detectionParams.v2_min || 0,
+        v2_max: detectionParams.v2_max || 85,
+        use_range2: detectionParams.use_range2 || false,
+      });
     }
 
     // 加载控制配置
     if (configs.control_settings) {
       const controlConfig = JSON.parse(configs.control_settings);
       Object.assign(controls, controlConfig);
+    } else if (configData.detection_params) {
+      // 从主配置加载控制设置
+      const detectionParams = configData.detection_params;
+      Object.assign(controls, {
+        min_area: detectionParams.min_area || 200,
+        canny_min: detectionParams.canny_min || 50,
+        canny_max: detectionParams.canny_max || 150,
+      });
+    }
+
+    // 加载面积过滤配置
+    if (configs.area_filter_settings) {
+      const areaFilterConfig = JSON.parse(configs.area_filter_settings);
+      Object.assign(areaFilter, areaFilterConfig);
+    } else if (configData.area_filter_params) {
+      Object.assign(areaFilter, configData.area_filter_params);
+    }
+
+    // 加载梯形校正配置
+    if (configs.perspective_settings) {
+      const perspectiveConfig = JSON.parse(configs.perspective_settings);
+      Object.assign(perspective, perspectiveConfig);
+    } else if (configData.perspective_params) {
+      Object.assign(perspective, configData.perspective_params);
+    }
+
+    // 加载黑色检测配置
+    if (configs.black_detection_settings) {
+      const blackDetectionConfig = JSON.parse(configs.black_detection_settings);
+      Object.assign(blackDetection, blackDetectionConfig);
+    } else if (configData.black_detection_params) {
+      Object.assign(blackDetection, configData.black_detection_params);
+    }
+
+    // 加载摄像头配置
+    if (configs.camera_settings) {
+      const cameraConfig = JSON.parse(configs.camera_settings);
+      Object.assign(camera, cameraConfig);
+    } else if (configData.camera_params) {
+      Object.assign(camera, configData.camera_params);
     }
 
     // 加载后重新计算拟合
@@ -521,36 +1014,206 @@ async function saveConfigurations() {
   }
 }
 
-// 删除服务端配置
-async function deleteConfigurations() {
+// 更新面积过滤参数
+async function updateAreaFilter() {
   try {
-    // 删除 HSV 配置
-    await fetch('/config/custom_string?key=hsv_settings', {
-      method: 'DELETE',
+    await fetch('/config/area_filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(areaFilter),
     });
 
-    // 删除控制配置
-    await fetch('/config/custom_string?key=control_settings', {
-      method: 'DELETE',
+    // 同时保存到自定义配置
+    await fetch('/config/custom_string', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: 'area_filter_settings',
+        value: JSON.stringify(areaFilter),
+      }),
     });
 
-    // 删除距离公式
-    await fetch('/config/custom_string?key=distance_formula', {
-      method: 'DELETE',
-    });
+    console.log('Area filter settings updated');
   } catch (error) {
-    console.error('Error deleting configurations:', error);
+    console.error('Error updating area filter:', error);
   }
 }
 
-// 重置到默认值
-async function resetToDefault() {
+// 更新梯形校正参数
+async function updatePerspective() {
+  try {
+    await fetch('/config/perspective', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(perspective),
+    });
+
+    // 同时保存到自定义配置
+    await fetch('/config/custom_string', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: 'perspective_settings',
+        value: JSON.stringify(perspective),
+      }),
+    });
+
+    console.log('Perspective settings updated');
+  } catch (error) {
+    console.error('Error updating perspective:', error);
+  }
+}
+
+// 更新黑色检测参数
+async function updateBlackDetection() {
+  try {
+    await fetch('/config/black_detection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(blackDetection),
+    });
+
+    // 同时保存到自定义配置
+    await fetch('/config/custom_string', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: 'black_detection_settings',
+        value: JSON.stringify(blackDetection),
+      }),
+    });
+
+    console.log('Black detection settings updated');
+  } catch (error) {
+    console.error('Error updating black detection:', error);
+  }
+}
+
+// 更新摄像头参数
+async function updateCamera() {
+  try {
+    await fetch('/config/camera', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(camera),
+    });
+
+    // 同时保存到自定义配置
+    await fetch('/config/custom_string', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: 'camera_settings',
+        value: JSON.stringify(camera),
+      }),
+    });
+
+    console.log('Camera settings updated');
+  } catch (error) {
+    console.error('Error updating camera:', error);
+  }
+}
+
+// 保存所有配置
+async function saveAllConfigs() {
+  saveLoading.value = true;
+  try {
+    await Promise.all([
+      saveConfigurations(),
+      updateAreaFilter(),
+      updatePerspective(),
+      updateBlackDetection(),
+      updateCamera(),
+      savePoints(),
+      saveTrendType(),
+      savePolyDegree(),
+      saveDistanceFormula(),
+    ]);
+
+    console.log('All configurations saved successfully');
+    alert('所有配置已保存成功');
+  } catch (error) {
+    console.error('Error saving all configs:', error);
+    alert('保存配置时出错，请检查控制台');
+  } finally {
+    saveLoading.value = false;
+  }
+}
+
+// 加载所有配置
+async function loadAllConfigs() {
+  loadLoading.value = true;
+  try {
+    // 加载主配置
+    const configResponse = await fetch('/config');
+    const configData = await configResponse.json();
+
+    if (configData.area_filter_params) {
+      Object.assign(areaFilter, configData.area_filter_params);
+    }
+
+    if (configData.perspective_params) {
+      Object.assign(perspective, configData.perspective_params);
+    }
+
+    if (configData.black_detection_params) {
+      Object.assign(blackDetection, configData.black_detection_params);
+    }
+
+    if (configData.camera_params) {
+      Object.assign(camera, configData.camera_params);
+    }
+
+    console.log('All configurations loaded successfully');
+    alert('所有配置已加载成功');
+  } catch (error) {
+    console.error('Error loading all configs:', error);
+    alert('加载配置时出错，请检查控制台');
+  } finally {
+    loadLoading.value = false;
+  }
+}
+
+// 重置所有配置为默认值
+async function resetAllToDefault() {
   resetLoading.value = true;
   try {
-    // 删除服务端配置
-    await deleteConfigurations();
+    // 重置为默认值
+    Object.assign(areaFilter, {
+      min_crop_area: 20000,
+      max_crop_area: 5200000,
+      enable_area_filter: true,
+      a4_ratio_tolerance: 0.3,
+      max_circularity: 0.7,
+      min_solidity: 0.8,
+      max_vertices: 8,
+      enable_a4_check: true,
+    });
 
-    // 重置为 Vue 文件中的默认值
+    Object.assign(perspective, {
+      enable: true,
+      target_width: 210,
+      target_height: 297,
+      a4_ratio: 1.414285714285714,
+      use_short_edge_for_measurement: true,
+    });
+
+    Object.assign(blackDetection, {
+      lower_h: 0,
+      lower_s: 0,
+      lower_v: 0,
+      upper_h: 255,
+      upper_s: 255,
+      upper_v: 80,
+      morph_kernel_size: 3,
+    });
+
+    Object.assign(camera, {
+      index: 0,
+      width: 1920,
+      height: 1080,
+    });
+
     formula.value = '((524.38/x)**(1/1.003))*100';
 
     Object.assign(hsv, {
@@ -575,14 +1238,51 @@ async function resetToDefault() {
       canny_max: 150,
     });
 
-    // 将默认值发送到服务端并保存
-    postConfig();
+    // 重置曲线拟合相关参数
+    trendType.value = 'Power';
+    polyDegree.value = 2;
+    points.value = [...defaultPoints];
+    calibrating.value = new Array(defaultPoints.length).fill(false);
 
-    console.log('Settings reset to default values');
+    // 重新计算拟合
+    computeFit();
+
+    // 保存默认值到服务器
+    await saveAllConfigs();
+
+    console.log('All settings reset to default values');
+    alert('所有设置已重置为默认值');
   } catch (error) {
     console.error('Error resetting to default:', error);
+    alert('重置设置时出错，请检查控制台');
   } finally {
     resetLoading.value = false;
+  }
+}
+
+// 切换矩形显示状态
+async function toggleShowRectangles() {
+  showRectanglesLoading.value = true;
+  try {
+    // 先获取当前状态
+    const statusResponse = await fetch('/control/show_rectangles');
+    const statusData = await statusResponse.json();
+    const currentShow = statusData.show_all_rectangles;
+
+    // 切换状态
+    await fetch('/control/show_rectangles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ show: !currentShow }),
+    });
+
+    console.log(`Rectangle display toggled to: ${!currentShow}`);
+    alert(`矩形显示已${!currentShow ? '开启' : '关闭'}`);
+  } catch (error) {
+    console.error('Error toggling show rectangles:', error);
+    alert('切换矩形显示时出错，请检查控制台');
+  } finally {
+    showRectanglesLoading.value = false;
   }
 }
 
