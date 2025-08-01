@@ -59,11 +59,11 @@
           <q-separator class="q-my-md" />
           <div class="text-subtitle2">OCR Measurement</div>
           <div class="q-mt-sm">
-            <q-input 
-              v-model="ocrTargetText" 
-              label="Target Text" 
-              dense 
-              clearable 
+            <q-input
+              v-model="ocrTargetText"
+              label="Target Text"
+              dense
+              clearable
               placeholder="Enter text to search for shapes"
             />
             <q-btn
@@ -156,13 +156,13 @@
                 <div v-if="shape.ocr_data" class="q-mt-sm">
                   <div class="text-caption text-weight-bold">OCR Information:</div>
                   <div v-if="shape.ocr_data.detected">
-                    <div>Text: <strong>"{{ shape.ocr_data.text }}"</strong></div>
+                    <div>
+                      Text: <strong>"{{ shape.ocr_data.text }}"</strong>
+                    </div>
                     <div>Confidence: {{ (shape.ocr_data.confidence * 100).toFixed(1) }}%</div>
                     <div class="text-caption">OCR detected in this shape</div>
                   </div>
-                  <div v-else class="text-caption text-grey">
-                    No OCR text detected
-                  </div>
+                  <div v-else class="text-caption text-grey">No OCR text detected</div>
                 </div>
               </div>
             </div>
@@ -506,7 +506,7 @@ async function getOcrMeasurements() {
     if (data.success) {
       // 保存处理时间
       ocrElapsedTime.value = data.elapsed_seconds || 0;
-      
+
       // 过滤出包含目标文字的形状
       const filteredMeasurements = data.analysis
         .map((crop: any) => ({
@@ -519,8 +519,10 @@ async function getOcrMeasurements() {
                 return shape.ocr_data.detected;
               }
               // 否则只显示包含目标文字的形状
-              return shape.ocr_data.detected && 
-                     shape.ocr_data.text.toLowerCase().includes(ocrTargetText.value.toLowerCase());
+              return (
+                shape.ocr_data.detected &&
+                shape.ocr_data.text.toLowerCase().includes(ocrTargetText.value.toLowerCase())
+              );
             })
             .map((shape: any) => ({
               shape_index: shape.shape_index,
@@ -531,7 +533,7 @@ async function getOcrMeasurements() {
                 area: shape.pixel_dimensions.area,
                 side_lengths: shape.pixel_dimensions.side_lengths || [],
                 mean_side_length: shape.pixel_dimensions.mean_side_length || 0,
-                perimeter: shape.pixel_dimensions.perimeter
+                perimeter: shape.pixel_dimensions.perimeter,
               },
               physical_dimensions: {
                 width_mm: shape.physical_dimensions.width_mm,
@@ -542,10 +544,10 @@ async function getOcrMeasurements() {
                 mean_side_length_mm: shape.physical_dimensions.mean_side_length_mm || 0,
                 perimeter_mm: shape.physical_dimensions.perimeter_mm,
                 measurement_type: shape.physical_dimensions.measurement_type,
-                mm_per_pixel: shape.physical_dimensions.mm_per_pixel
+                mm_per_pixel: shape.physical_dimensions.mm_per_pixel,
               },
-              ocr_data: shape.ocr_data
-            }))
+              ocr_data: shape.ocr_data,
+            })),
         }))
         .filter((crop: any) => crop.shapes.length > 0); // 只保留有匹配形状的crop
 
