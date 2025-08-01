@@ -2,31 +2,31 @@
   <q-page padding>
     <div class="text-h5 q-mb-md">曲线拟合设置</div>
 
-    <div class="row no-wrap" style="height: calc(100vh - 150px); gap: 16px">
+    <div class="row no-wrap" style="gap: 16px; align-items: flex-start">
       <!-- 左侧：视频流预览区 -->
       <div style="width: 50%; display: flex; flex-direction: column">
-        <q-card flat bordered style="height: 100%">
-          <q-card-section style="height: 100%; display: flex; flex-direction: column">
+        <q-card flat bordered style="min-height: 400px">
+          <q-card-section style="display: flex; flex-direction: column">
             <div class="text-h6 q-mb-md">视频流预览</div>
 
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 16px">
-              <div style="flex: 1; display: flex; flex-direction: column">
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-direction: column">
                 <div class="text-subtitle2 q-mb-xs">Processed Stream</div>
                 <img
                   :src="`/video/processed?formula=${encodeURIComponent(equation)}`"
                   width="100%"
                   alt="Processed"
-                  style="border: 1px solid #ddd; border-radius: 4px; flex: 1; object-fit: contain"
+                  style="border: 1px solid #ddd; border-radius: 4px; object-fit: contain"
                 />
               </div>
 
-              <div style="flex: 1; display: flex; flex-direction: column">
+              <div style="display: flex; flex-direction: column">
                 <div class="text-subtitle2 q-mb-xs">Mask Stream</div>
                 <img
                   :src="`/video/mask`"
                   width="100%"
                   alt="Mask"
-                  style="border: 1px solid #ddd; border-radius: 4px; flex: 1; object-fit: contain"
+                  style="border: 1px solid #ddd; border-radius: 4px; object-fit: contain"
                 />
               </div>
             </div>
@@ -35,16 +35,7 @@
       </div>
 
       <!-- 右侧：设置卡片 -->
-      <div
-        style="
-          width: 50%;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          overflow-y: auto;
-          height: 100%;
-        "
-      >
+      <div style="width: 50%; display: flex; flex-direction: column; gap: 16px">
         <!-- 曲线拟合设置卡片 -->
         <q-card flat bordered>
           <q-expansion-item
@@ -113,7 +104,7 @@
                 </div>
 
                 <!-- 点管理区 -->
-                <div class="q-mt-md" style="max-height: 300px; overflow-y: auto">
+                <div class="q-mt-md">
                   <div class="text-subtitle2 q-mb-sm">数据点管理</div>
                   <div class="q-col-gutter-sm">
                     <div v-for="(p, idx) in sortedPoints" :key="idx" class="q-mb-sm">
@@ -860,11 +851,17 @@ async function loadConfig() {
     // 初始化矫正状态数组
     calibrating.value = new Array(points.value.length).fill(false);
 
-    // 加载距离公式 - 支持两种字段名
+    // 加载距离公式 - 支持多种字段名，按优先级加载
     if (configs.distance_formula) {
       formula.value = configs.distance_formula;
     } else if (configs.Formula) {
       formula.value = configs.Formula;
+    } else if (configs.formula) {
+      // 检查是否是拟合公式被误保存了
+      // 如果公式包含 "y = " 说明是拟合公式，跳过
+      if (!configs.formula.includes('y = ')) {
+        formula.value = configs.formula;
+      }
     }
 
     // 加载 HSV 配置
@@ -937,8 +934,15 @@ async function loadConfig() {
       Object.assign(camera, configData.camera_params);
     }
 
-    // 加载后重新计算拟合
-    computeFit();
+    // 加载后重新计算拟合（如果没有保存的拟合公式）
+    if (configs.fitting_equation) {
+      equation.value = configs.fitting_equation;
+      // 如果有保存的拟合公式，尝试从中提取R²值
+      // 这里可以添加更复杂的逻辑来解析保存的公式
+    } else {
+      // 没有保存的拟合公式，重新计算
+      computeFit();
+    }
   } catch (error) {
     console.error('Failed to load config:', error);
     // 出错时使用默认值
@@ -964,7 +968,7 @@ async function saveConfig(key: string, value: string) {
 }
 
 async function saveFormula() {
-  await saveConfig('formula', equation.value);
+  await saveConfig('fitting_equation', equation.value);
 }
 
 async function savePoints() {
@@ -1247,6 +1251,9 @@ async function resetAllToDefault() {
     // 重新计算拟合
     computeFit();
 
+    // 清除可能存在的旧公式键
+    await Promise.all([saveConfig('fitting_equation', ''), saveConfig('Formula', '')]);
+
     // 保存默认值到服务器
     await saveAllConfigs();
 
@@ -1385,7 +1392,7 @@ async function saveCalibrationCurve() {
         const convertedFormula = `((${A.toFixed(2)}/x)**(1/${B.toFixed(3)}))*${C}`;
 
         // 保存到配置
-        await saveConfig('Formula', convertedFormula);
+        await saveConfig('distance_formula', convertedFormula);
 
         // 同时更新本地的formula变量
         formula.value = convertedFormula;
