@@ -72,6 +72,19 @@
 
           <!-- 测量结果展示 -->
           <div v-if="measurements.length > 0" class="q-mt-md">
+            <!-- 过滤器控制 -->
+            <div class="row items-center q-mb-sm">
+              <div class="text-subtitle2">Measurement Results</div>
+              <q-space />
+              <q-btn
+                :icon="showDetailedInfo ? 'visibility_off' : 'visibility'"
+                :label="showDetailedInfo ? 'Hide Details' : 'Show Details'"
+                size="sm"
+                flat
+                color="primary"
+                @click="showDetailedInfo = !showDetailedInfo"
+              />
+            </div>
             <div v-for="crop in measurements" :key="crop.crop_index" class="q-mb-md">
               <div class="text-subtitle2">Crop {{ crop.crop_index }}</div>
 
@@ -121,23 +134,30 @@
                     }}mm
                   </div>
                   <div>Area: {{ shape.physical_dimensions.area_mm2.toFixed(1) }}mm²</div>
-                  <div v-if="shape.physical_dimensions.diameter_mm > 0">
-                    Diameter: {{ shape.physical_dimensions.diameter_mm.toFixed(1) }}mm
-                  </div>
-                  <div v-if="shape.physical_dimensions.mean_side_length_mm > 0">
-                    Mean Side: {{ shape.physical_dimensions.mean_side_length_mm.toFixed(1) }}mm
-                  </div>
-                  <div>Perimeter: {{ shape.physical_dimensions.perimeter_mm.toFixed(1) }}mm</div>
-                  <div class="text-caption">
-                    Method: {{ shape.physical_dimensions.measurement_type }} ({{
-                      shape.physical_dimensions.mm_per_pixel.toFixed(3)
-                    }}
-                    mm/px)
-                  </div>
+
+                  <!-- 详细信息 - 根据过滤器显示 -->
+                  <template v-if="showDetailedInfo">
+                    <div v-if="shape.physical_dimensions.diameter_mm > 0">
+                      Diameter: {{ shape.physical_dimensions.diameter_mm.toFixed(1) }}mm
+                    </div>
+                    <div v-if="shape.physical_dimensions.mean_side_length_mm > 0">
+                      Mean Side: {{ shape.physical_dimensions.mean_side_length_mm.toFixed(1) }}mm
+                    </div>
+                    <div>Perimeter: {{ shape.physical_dimensions.perimeter_mm.toFixed(1) }}mm</div>
+                    <div class="text-caption">
+                      Method: {{ shape.physical_dimensions.measurement_type }} ({{
+                        shape.physical_dimensions.mm_per_pixel.toFixed(3)
+                      }}
+                      mm/px)
+                    </div>
+                  </template>
                 </div>
 
-                <!-- 边长详情 -->
-                <div v-if="shape.physical_dimensions.side_lengths_mm.length > 0" class="q-mt-sm">
+                <!-- 边长详情 - 根据过滤器显示 -->
+                <div
+                  v-if="showDetailedInfo && shape.physical_dimensions.side_lengths_mm.length > 0"
+                  class="q-mt-sm"
+                >
                   <div class="text-caption text-weight-bold">Side Lengths:</div>
                   <div
                     v-for="(length, idx) in shape.physical_dimensions.side_lengths_mm"
@@ -162,9 +182,9 @@
               </div>
             </div>
 
-            <!-- A4 参考信息 -->
+            <!-- A4 参考信息 - 根据过滤器显示 -->
             <div
-              v-if="a4Reference"
+              v-if="showDetailedInfo && a4Reference"
               class="q-mt-md q-pa-sm"
               style="background: #fff3cd; border-radius: 4px"
             >
@@ -173,7 +193,7 @@
               <div class="text-caption">{{ a4Reference.note }}</div>
             </div>
 
-            <!-- OCR 处理时间信息 -->
+            <!-- OCR 处理时间信息 - 始终显示 -->
             <div
               v-if="ocrElapsedTime > 0"
               class="q-mt-md q-pa-sm"
@@ -258,6 +278,9 @@ const minSquareLoading = ref(false);
 const ocrTargetText = ref('');
 const ocrLoading = ref(false);
 const ocrElapsedTime = ref(0);
+
+// 过滤器相关
+const showDetailedInfo = ref(false);
 
 // 计算距离：使用拟合公式进行逆运算
 function computeDistance(px: number) {
