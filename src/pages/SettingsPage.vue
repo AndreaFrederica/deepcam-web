@@ -94,13 +94,31 @@
                     拟合公式：<span class="text-primary">{{ equation }}</span>
                   </div>
                   <div>
-                    R²: <span class="text-primary">{{ r2.toFixed(6) }}</span>
+                    R²: <span class="text-primary">{{ r2.toFixed(8) }}</span>
+                  </div>
+                  <div class="text-caption text-grey-6">
+                    数据点数: {{ sortedPoints.length }} | 拟合类型:
+                    {{ getTrendTypeName(trendType) }}
                   </div>
                 </div>
 
                 <!-- 曲线展示区 -->
                 <div class="q-mt-lg" style="min-height: 200px">
-                  <CurveChart :points="fitResults" />
+                  <CurveChart
+                    :points="fitResults"
+                    :currentDistance="currentDistance"
+                    :currentPixelHeight="currentPixelHeight"
+                  />
+                </div>
+
+                <!-- 实时距离显示 -->
+                <div v-if="currentDistance > 0" class="q-mt-sm text-subtitle2 text-center">
+                  <div class="text-info">
+                    当前实时距离:
+                    <span class="text-primary">{{ (currentDistance * 100).toFixed(1) }} cm</span> |
+                    像素高度:
+                    <span class="text-primary">{{ currentPixelHeight.toFixed(0) }} px</span>
+                  </div>
                 </div>
 
                 <!-- 点管理区 -->
@@ -769,35 +787,95 @@ const fitResults = ref<{ x: number; y: number }[]>([]);
 const equation = ref<string>('');
 const r2 = ref<number>(0);
 
+// 实时距离信息
+const currentDistance = ref<number>(0);
+const currentPixelHeight = ref<number>(0);
+
+// 距离平滑处理
+const distanceHistory = ref<number[]>([]);
+const maxHistoryLength = 5; // 保持最近5次测量的平均值
+
+// 获取趋势类型的中文名称
+function getTrendTypeName(type: string) {
+  const typeMap: Record<string, string> = {
+    Linear: '线性',
+    Logarithmic: '对数',
+    Exponential: '指数',
+    Power: '幂函数',
+    Polynomial: '多项式',
+  };
+  return typeMap[type] || type;
+}
+
 // 拟合计算函数
 function computeFit() {
   const data: [number, number][] = sortedPoints.value.map((p) => [p.x, p.y]);
   let result: { string: string; r2: number; predict: (x: number) => [number, number] };
 
-  switch (trendType.value) {
-    case 'Linear':
-      result = regression.linear(data);
-      break;
-    case 'Logarithmic':
-      result = regression.logarithmic(data);
-      break;
-    case 'Exponential':
-      result = regression.exponential(data);
-      break;
-    case 'Power':
-      result = regression.power(data);
-      break;
-    case 'Polynomial':
-      result = regression.polynomial(data, { order: polyDegree.value });
-      break;
-    default:
-      result = regression.power(data);
-      break;
-  }
+  try {
+    switch (trendType.value) {
+      case 'Linear':
+        result = regression.linear(data, { precision: 15 });
+        break;
+      case 'Logarithmic':
+        result = regression.logarithmic(data, { precision: 15 });
+        break;
+      case 'Exponential':
+        result = regression.exponential(data, { precision: 15 });
+        break;
+      case 'Power':
+        // 使用 regression 库的 power 方法，设置高精度
+        result = regression.power(data, { precision: 15 });
+        break;
+      case 'Polynomial':
+        result = regression.polynomial(data, {
+          order: polyDegree.value,
+          precision: 15,
+        });
+        break;
+      default:
+        result = regression.power(data, { precision: 15 });
+        break;
+    }
 
-  // 设置公式和R²
-  equation.value = result.string;
-  r2.value = result.r2;
+    // 设置公式和R²
+    equation.value = result.string;
+    r2.value = result.r2;
+
+    // 输出调试信息
+    console.log('Regression Results:', {
+      type: trendType.value,
+      equation: result.string,
+      r2: result.r2,
+      dataPoints: data.length,
+      coefficients: 'equation' in result ? result.equation : 'N/A',
+    });
+  } catch (error) {
+    console.error('Regression calculation error:', error);
+    // 回退到基础计算（不使用precision参数）
+    switch (trendType.value) {
+      case 'Linear':
+        result = regression.linear(data);
+        break;
+      case 'Logarithmic':
+        result = regression.logarithmic(data);
+        break;
+      case 'Exponential':
+        result = regression.exponential(data);
+        break;
+      case 'Power':
+        result = regression.power(data);
+        break;
+      case 'Polynomial':
+        result = regression.polynomial(data, { order: polyDegree.value });
+        break;
+      default:
+        result = regression.power(data);
+        break;
+    }
+    equation.value = result.string;
+    r2.value = result.r2;
+  }
 
   // 更新拟合点
   fitResults.value = sortedPoints.value.map((p) => {
@@ -807,6 +885,96 @@ function computeFit() {
 
   // 保存公式到配置
   void saveFormula();
+}
+
+// 获取实时距离信息
+async function fetchCurrentDistance() {
+  try {
+    const response = await fetch('/api/physical_measurements');
+    const data = await response.json();
+
+    if (data && data.success && data.measurements && data.measurements.length > 0) {
+      const measurement = data.measurements[0];
+      const newLongPx = measurement.target?.new_long_px;
+
+      if (newLongPx && equation.value) {
+        currentPixelHeight.value = newLongPx;
+
+        // 使用当前拟合公式计算距离（逆向计算）
+        // 拟合公式: y = ax^b (y是像素高度，x是距离)
+        // 逆运算求距离: x = (y/a)^(1/b)
+        const equationStr = equation.value;
+        const match = equationStr.match(/y\s*=\s*([0-9.-]+)(?:\s*\*\s*)?x\^?([0-9.-]+)/);
+
+        if (match && match[1] && match[2]) {
+          const coefficient = parseFloat(match[1]); // 系数 a
+          const exponent = parseFloat(match[2]); // 指数 b
+
+          console.log(`Equation parsing: coefficient=${coefficient}, exponent=${exponent}`);
+          console.log(`Current pixel height: ${newLongPx}px`);
+          console.log(`Equation: ${equationStr}`);
+
+          // 从像素高度反推距离: x = (y/a)^(1/b)
+          const calculatedDistance = Math.pow(newLongPx / coefficient, 1 / exponent);
+
+          console.log(
+            `Raw calculation: (${newLongPx} / ${coefficient})^(1 / ${exponent}) = ${calculatedDistance}`,
+          );
+
+          // 检查计算结果是否合理
+          if (isFinite(calculatedDistance) && calculatedDistance > 0) {
+            // 添加到历史记录进行平滑处理
+            distanceHistory.value.push(calculatedDistance);
+            if (distanceHistory.value.length > maxHistoryLength) {
+              distanceHistory.value.shift(); // 移除最旧的数据
+            }
+
+            // 计算平均值来平滑距离
+            const smoothedDistance =
+              distanceHistory.value.reduce((sum, dist) => sum + dist, 0) /
+              distanceHistory.value.length;
+
+            // 只有当距离变化超过阈值时才更新显示（防止小幅抖动）
+            const changeThreshold = 0.01; // 1cm的变化阈值
+            if (
+              Math.abs(smoothedDistance - currentDistance.value) > changeThreshold ||
+              currentDistance.value === 0
+            ) {
+              currentDistance.value = smoothedDistance;
+              console.log(
+                `✓ Smoothed distance: ${smoothedDistance.toFixed(3)}m (${(smoothedDistance * 100).toFixed(1)}cm) [history: ${distanceHistory.value.length} samples]`,
+              );
+            }
+          } else {
+            console.warn('Invalid distance calculation result:', calculatedDistance);
+            // 不立即重置，给一些容错机会
+            if (distanceHistory.value.length === 0) {
+              currentDistance.value = 0;
+            }
+          }
+        } else {
+          console.warn('Failed to parse equation for distance calculation:', equationStr);
+          currentDistance.value = 0;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch current distance:', error);
+    // 出错时重置值
+    currentDistance.value = 0;
+    currentPixelHeight.value = 0;
+  }
+}
+
+// 开始实时监控
+function startRealTimeMonitoring() {
+  // 初始获取一次
+  void fetchCurrentDistance();
+
+  // 每1000ms更新一次（降低频率减少抖动）
+  setInterval(() => {
+    void fetchCurrentDistance();
+  }, 1000);
 }
 
 // 配置管理函数
@@ -1439,6 +1607,8 @@ watch(
 // 组件挂载时加载配置
 onMounted(() => {
   void loadConfig();
+  // 启动实时距离监控
+  startRealTimeMonitoring();
 });
 </script>
 
