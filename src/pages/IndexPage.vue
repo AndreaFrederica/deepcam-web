@@ -231,7 +231,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
 
-// 距离公式
+// 距离公式 - 默认使用标准的距离公式格式
 const formula = ref('((524.38/x)**(1/1.003))*100');
 
 const stats = reactive({
@@ -259,12 +259,15 @@ const ocrTargetText = ref('');
 const ocrLoading = ref(false);
 const ocrElapsedTime = ref(0);
 
-// 计算距离：将 x,y 互换后使用公式
+// 计算距离：使用拟合公式进行逆运算
 function computeDistance(px: number) {
-  // 将像素高度传入公式的 x
+  // 将像素高度传入公式计算距离
   try {
-    return eval(formula.value.replace(/x/g, px as any));
-  } catch {
+    // 替换公式中的 x 为实际像素值
+    const formulaWithValue = formula.value.replace(/x/g, px.toString());
+    return eval(formulaWithValue);
+  } catch (error) {
+    console.error('Error calculating distance:', error, 'Formula:', formula.value, 'Pixel:', px);
     return 0;
   }
 }
@@ -421,13 +424,16 @@ async function getOcrMeasurements() {
 }
 
 onMounted(async () => {
-  // 加载距离公式配置
+  // 直接加载保存的距离公式配置
   try {
     const formulaResponse = await fetch('/config/custom_string?key=distance_formula');
     if (formulaResponse.ok) {
       const formulaData = await formulaResponse.json();
       if (formulaData.success && formulaData.value) {
         formula.value = formulaData.value;
+        console.log('Loaded distance formula:', formula.value);
+      } else {
+        console.log('No saved distance formula found, using default');
       }
     }
   } catch (error) {
@@ -480,34 +486,6 @@ onMounted(async () => {
   };
 });
 </script>
-
-// 保存配置 async function saveConfigurations() { try { // 保存 HSV 配置 await
-fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ key: 'hsv_settings', value: JSON.stringify(hsv), }), }); // 保存控制配置
-await fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type': 'application/json'
-}, body: JSON.stringify({ key: 'control_settings', value: JSON.stringify(controls), }), }); //
-保存距离公式 await fetch('/config/custom_string', { method: 'POST', headers: { 'Content-Type':
-'application/json' }, body: JSON.stringify({ key: 'distance_formula', value: formula.value, }), });
-} catch (error) { console.error('Error saving configurations:', error); } } // 保存距离公式 async
-function saveDistanceFormula() { try { await fetch('/config/custom_string', { method: 'POST',
-headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'distance_formula',
-value: formula.value, }), }); } catch (error) { console.error('Error saving distance formula:',
-error); } } // 删除服务端配置 async function deleteConfigurations() { try { // 删除 HSV 配置 await
-fetch('/config/custom_string?key=hsv_settings', { method: 'DELETE', }); // 删除控制配置 await
-fetch('/config/custom_string?key=control_settings', { method: 'DELETE', }); // 删除距离公式 await
-fetch('/config/custom_string?key=distance_formula', { method: 'DELETE', }); } catch (error) {
-console.error('Error deleting configurations:', error); } } // 重置到默认值 async function
-resetToDefault() { resetLoading.value = true; try { // 删除服务端配置 await deleteConfigurations();
-// 重置为 Vue 文件中的默认值 formula.value = '((524.38/x)**(1/1.003))*100'; Object.assign(hsv, {
-h1_min: 0, h1_max: 179, s1_min: 0, s1_max: 255, v1_min: 0, v1_max: 85, use_range2: false, h2_min: 0,
-h2_max: 179, s2_min: 0, s2_max: 255, v2_min: 0, v2_max: 85, }); Object.assign(controls, { min_area:
-200, canny_min: 50, canny_max: 150, }); // 将默认值发送到服务端并保存 postConfig();
-console.log('Settings reset to default values'); } catch (error) { console.error('Error resetting to
-default:', error); } finally { resetLoading.value = false; } } // 每次滑条或输入变化都 POST
-到后端并保存配置 function postConfig() { void fetch('/control/hsv', { method: 'POST', headers: {
-'Content-Type': 'application/json' }, body: JSON.stringify(hsv), }); void fetch('/control/canny', {
-method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(controls), });
-// 保存配置到持久化存储 void saveConfigurations(); }
 
 <style scoped>
 .container {

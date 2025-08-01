@@ -1547,14 +1547,19 @@ async function saveCalibrationCurve() {
 
       console.log(`Parsed equation: coefficient=${coefficient}, exponent=${exponent}`);
 
-      // 转换为 ((A/x)**(1/B))*C 的格式
-      // 对于 y = ax^b，转换为 ((A/x)**(1/(-b)))*C
-      // 其中 A 和 C 需要根据系数计算
+      // 转换为距离公式格式
+      // 拟合公式: y = ax^b (y是像素高度，x是距离)
+      // 转换为: x = (y/a)^(1/b)
+      // 再转换为 ((A/y)**(1/B))*C 的格式，其中y对应像素值
 
       if (exponent < 0) {
         // 对于负指数，如 y = ax^(-b)
-        const A = Math.pow(coefficient, 1 / Math.abs(exponent));
-        const B = Math.abs(exponent);
+        // 转换: x = (y/a)^(1/(-b)) = (y/a)^(-1/b)
+        // 重写为: x = (a/y)^(1/b)
+        // 所以 A = a, B = |b|, C = 1
+
+        const A = coefficient; // 直接使用系数
+        const B = Math.abs(exponent); // 使用指数的绝对值
         const C = 1;
 
         const convertedFormula = `((${A.toFixed(2)}/x)**(1/${B.toFixed(3)}))*${C}`;
@@ -1565,7 +1570,9 @@ async function saveCalibrationCurve() {
         // 同时更新本地的formula变量
         formula.value = convertedFormula;
 
-        console.log(`Converted formula saved: ${convertedFormula}`);
+        console.log(`Original equation: ${equationStr}`);
+        console.log(`Coefficient: ${coefficient}, Exponent: ${exponent}`);
+        console.log(`Converted formula: ${convertedFormula}`);
 
         // 可以显示成功消息
         alert(`矫正曲线已保存：${convertedFormula}`);
