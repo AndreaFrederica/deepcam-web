@@ -14,40 +14,16 @@
     </div>
 
     <div class="row">
-      <!-- 流媒体显示 -->
-      <div class="col-6" v-if="false">
-        <q-card flat bordered>
-          <q-expansion-item
-            default-opened
-            icon="videocam"
-            label="视频流"
-            header-class="text-primary"
-          >
-            <q-card-section>
-              <div class="text-subtitle2">处理后的流</div>
-              <img
-                :src="`/video/processed?formula=${encodeURIComponent(formula)}`"
-                width="100%"
-                alt="Processed"
-              />
-            </q-card-section>
-            <q-separator />
-            <q-card-section>
-              <div class="text-subtitle2">掩码流</div>
-              <img :src="`/video/mask`" width="100%" alt="Mask" />
-            </q-card-section>
-          </q-expansion-item>
-        </q-card>
-      </div>
-
       <!-- 控件区 -->
       <div class="col-6">
         <q-card flat bordered class="q-pa-md">
           <!-- 物理测量 -->
           <div class="flex">
             <div class="text-subtitle2">物理测量</div>
-            <div class="text-subtitle2">| 当前功率 {{ power.toFixed(3) }} W |</div>
-            <div class="text-subtitle2">最大功率 {{ maxPower.toFixed(3) }} W</div>
+            <div class="text-subtitle2">&nbsp;| 当前电压 {{ voltage.toFixed(3) }} V</div>
+            <div class="text-subtitle2">&nbsp;| 当前电流 {{ current.toFixed(3) }} A</div>
+            <div class="text-subtitle2">&nbsp;| 当前功率 {{ power.toFixed(3) }} W |</div>
+            <div class="text-subtitle2">&nbsp;最大功率 {{ maxPower.toFixed(3) }} W</div>
           </div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn
@@ -68,67 +44,7 @@
           <q-separator class="q-my-md" />
           <div class="text-subtitle2">OCR 测量</div>
           <div class="q-mt-sm">
-            <!-- <q-input
-              v-model="ocrTargetText"
-              label="目标文本"
-              dense
-              clearable
-              placeholder="输入要搜索的形状文本"
-            /> -->
-            <!-- <q-option-group
-              v-model="ocrTargetText"
-              :options="[
-                {
-                  label: '1',
-                  value: '1',
-                },
-                {
-                  label: '2',
-                  value: '2',
-                },
-                {
-                  label: '3',
-                  value: '3',
-                },
-                {
-                  label: '4',
-                  value: '4',
-                },
-                {
-                  label: '5',
-                  value: '5',
-                },
-                {
-                  label: '6',
-                  value: '6',
-                },
-                {
-                  label: '7',
-                  value: '7',
-                },
-                {
-                  label: '8',
-                  value: '8',
-                },
-                {
-                  label: '9',
-                  value: '9',
-                },
-                {
-                  label: '0',
-                  value: '0',
-                },
-              ]"
-              color="primary"
-              inline
-            /> -->
             <div class="row q-gutter-sm q-mt-sm">
-              <!-- <q-btn
-                color="accent"
-                label="OCR 分析"
-                @click="getOcrMeasurements"
-                :loading="ocrLoading"
-              /> -->
               <q-btn
                 :color="showVirtualKeyboard ? 'negative' : 'primary'"
                 :icon="showVirtualKeyboard ? 'keyboard_hide' : 'keyboard'"
@@ -140,6 +56,50 @@
             </div>
           </div>
 
+          <q-separator class="q-my-md" />
+
+          <!-- 全局统计 -->
+          <div class="text-subtitle2 q-mt-lg">统计信息</div>
+          <div class="q-mt-sm">
+            <div>
+              矩形数量: <strong>{{ stats.count }}</strong>
+            </div>
+            <div>
+              总像素: <strong>{{ stats.total_pixels }}</strong>
+            </div>
+            <div>
+              帧比率: <strong>{{ (stats.frame_ratio * 100).toFixed(2) }}%</strong>
+            </div>
+            <div>
+              黑色比率: <strong>{{ (stats.black_ratio * 100).toFixed(2) }}%</strong>
+            </div>
+            <div>
+              帧率: <strong>{{ stats.fps.toFixed(1) }}</strong>
+            </div>
+          </div>
+
+          <q-separator class="q-my-md" />
+
+          <!-- 检测到的矩形详情 -->
+          <div class="text-subtitle2">检测到的矩形</div>
+          <div v-for="r in displayedRects" :key="r.id">
+            <div>
+              <strong>#{{ r.id }}</strong>
+            </div>
+            <div>外框: {{ r.outer_width }}×{{ r.outer_height }}</div>
+            <div>面积: {{ r.area }}px</div>
+            <div>新边: {{ r.new_long_px.toFixed(1) }}px</div>
+            <div>距离: {{ computeDistance(r.new_long_px).toFixed(1) }} cm</div>
+            <div>形状: {{ r.shape_type }}</div>
+            <div>内框: {{ r.inner_width }}×{{ r.inner_height }} (面积 {{ r.inner_area }}px)</div>
+            <div>信息: {{ r.inner_info }}</div>
+          </div>
+        </q-card>
+      </div>
+
+      <!-- 测量结果区 -->
+      <div class="col-6">
+        <q-card flat bordered class="q-pa-md">
           <!-- 测量结果展示 -->
           <div v-if="measurements.length > 0" class="q-mt-md">
             <!-- 过滤器控制 -->
@@ -159,11 +119,7 @@
               <div class="text-subtitle2">裁剪区域 {{ crop.crop_index }}</div>
 
               <!-- Target 信息 -->
-              <div
-                v-if="crop.target"
-                class="q-mb-sm q-pa-sm"
-                style="background: #f5f5f5; border-radius: 4px"
-              >
+              <q-card v-if="crop.target" class="q-mb-sm q-pa-sm" style="border-radius: 4px">
                 <div>
                   <strong>目标 #{{ crop.target.id }}</strong>
                 </div>
@@ -171,14 +127,14 @@
                 <div>面积: {{ crop.target.area }}px</div>
                 <div>长边: {{ crop.target.new_long_px.toFixed(1) }}px</div>
                 <div>距离: {{ computeDistance(crop.target.new_long_px).toFixed(1) }} cm</div>
-              </div>
+              </q-card>
 
               <!-- 形状测量结果 -->
-              <div
+              <q-card
                 v-for="shape in crop.shapes"
                 :key="shape.shape_index"
                 class="q-mb-sm q-pa-sm"
-                style="background: #e8f4fd; border-radius: 4px"
+                style="border-radius: 4px"
               >
                 <div class="text-weight-bold">{{ shape.shape_type }} #{{ shape.shape_index }}</div>
 
@@ -320,14 +276,14 @@
                   </div>
                   <div v-else class="text-caption text-grey">未检测到 OCR 文本</div>
                 </div>
-              </div>
+              </q-card>
             </div>
 
             <!-- A4 参考信息 - 根据过滤器显示 -->
             <div
               v-if="showDetailedInfo && a4Reference"
               class="q-mt-md q-pa-sm"
-              style="background: #fff3cd; border-radius: 4px"
+              style="border-radius: 4px"
             >
               <div class="text-caption text-weight-bold">A4 参考:</div>
               <div>
@@ -344,50 +300,11 @@
             <div
               v-if="false && ocrElapsedTime > 0"
               class="q-mt-md q-pa-sm"
-              style="background: #e8f5e8; border-radius: 4px"
+              style="border-radius: 4px"
             >
               <div class="text-caption text-weight-bold">OCR 处理时间:</div>
               <div>{{ ocrElapsedTime.toFixed(3) }} 秒</div>
             </div>
-          </div>
-
-          <q-separator class="q-my-md" />
-
-          <!-- 全局统计 -->
-          <div class="text-subtitle2 q-mt-lg">统计信息</div>
-          <div class="q-mt-sm">
-            <div>
-              矩形数量: <strong>{{ stats.count }}</strong>
-            </div>
-            <div>
-              总像素: <strong>{{ stats.total_pixels }}</strong>
-            </div>
-            <div>
-              帧比率: <strong>{{ (stats.frame_ratio * 100).toFixed(2) }}%</strong>
-            </div>
-            <div>
-              黑色比率: <strong>{{ (stats.black_ratio * 100).toFixed(2) }}%</strong>
-            </div>
-            <div>
-              帧率: <strong>{{ stats.fps.toFixed(1) }}</strong>
-            </div>
-          </div>
-
-          <q-separator class="q-my-md" />
-
-          <!-- 检测到的矩形详情 -->
-          <div class="text-subtitle2">检测到的矩形</div>
-          <div v-for="r in displayedRects" :key="r.id">
-            <div>
-              <strong>#{{ r.id }}</strong>
-            </div>
-            <div>外框: {{ r.outer_width }}×{{ r.outer_height }}</div>
-            <div>面积: {{ r.area }}px</div>
-            <div>新边: {{ r.new_long_px.toFixed(1) }}px</div>
-            <div>距离: {{ computeDistance(r.new_long_px).toFixed(1) }} cm</div>
-            <div>形状: {{ r.shape_type }}</div>
-            <div>内框: {{ r.inner_width }}×{{ r.inner_height }} (面积 {{ r.inner_area }}px)</div>
-            <div>信息: {{ r.inner_info }}</div>
           </div>
         </q-card>
       </div>
@@ -476,6 +393,7 @@
 </template>
 
 <script setup lang="ts">
+import { useQuasar } from 'quasar';
 import { reactive, ref, onMounted, onUnmounted, watch } from 'vue';
 
 // 距离公式 - 默认使用标准的距离公式格式
@@ -594,6 +512,8 @@ async function getPower() {
     const data = await response.json();
     if (response.status === 200) {
       power.value = data.data.power_w || 0;
+      current.value = data.data.current_a || 0;
+      voltage.value = data.data.bus_voltage_v || 0;
       if (data.data.power_w > maxPower.value) {
         maxPower.value = data.data.power_w;
       }
@@ -886,6 +806,8 @@ onUnmounted(() => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const timer = ref<any>(undefined);
 const power = ref(0);
+const current = ref(0);
+const voltage = ref(0);
 const maxPower = ref(0);
 
 onMounted(() => {
@@ -900,6 +822,9 @@ watch(showVirtualKeyboard, async (newValue) => {
     await getOcrMeasurements();
   }
 });
+
+const $q = useQuasar();
+$q.dark.set(true); // 设置为暗黑模式
 </script>
 
 <style scoped>
