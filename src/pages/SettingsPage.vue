@@ -165,9 +165,9 @@
           </q-expansion-item>
         </q-card>
 
-        <!-- HSV颜色检测设置卡片 -->
+        <!-- 修正系数设置卡片 -->
         <q-card flat bordered>
-          <q-expansion-item icon="palette" label="HSV颜色检测设置" header-class="text-primary">
+          <q-expansion-item icon="tune" label="修正系数设置" header-class="text-primary">
             <q-card-section>
               <!-- 距离公式 -->
               <div class="text-subtitle2 q-mb-sm">距离公式</div>
@@ -178,9 +178,33 @@
                 clearable
                 @update:model-value="saveDistanceFormula"
               />
+              <div class="text-caption text-grey-6 q-mt-xs">
+                用于距离计算的公式，格式如：((524.38/x)**(1/1.003))*100
+              </div>
 
               <q-separator class="q-my-md" />
 
+              <!-- 边长修正系数 -->
+              <div class="text-subtitle2 q-mb-sm">边长修正系数</div>
+              <q-input
+                v-model.number="correctionFactor"
+                label="边长修正系数"
+                type="number"
+                step="0.0001"
+                dense
+                @update:model-value="saveCorrectionFactor"
+              />
+              <div class="text-caption text-grey-6 q-mt-xs">
+                用于修正物理边长测量的系数，默认值：1.0261
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
+        <!-- HSV颜色检测设置卡片 -->
+        <q-card flat bordered>
+          <q-expansion-item icon="palette" label="HSV颜色检测设置" header-class="text-primary">
+            <q-card-section>
               <!-- HSV 范围 1 -->
               <div class="text-subtitle2">HSV 范围 1</div>
               <div
@@ -687,6 +711,9 @@ const polyDegree = ref<number>(2);
 // 距离公式
 const formula = ref('((524.38/x)**(1/1.003))*100');
 
+// 边长修正系数
+const correctionFactor = ref<number>(1.0261);
+
 // HSV 控制参数
 const hsv = reactive<HSVConfig>({
   h1_min: 0,
@@ -1162,6 +1189,15 @@ async function loadConfig() {
       }
     }
 
+    // 加载边长修正系数
+    if (configs.correction_factor) {
+      const factor = parseFloat(configs.correction_factor);
+      if (!isNaN(factor) && factor > 0) {
+        correctionFactor.value = factor;
+        console.log('加载边长修正系数:', factor);
+      }
+    }
+
     // 加载 HSV 配置
     if (configs.hsv_settings) {
       const hsvConfig = JSON.parse(configs.hsv_settings);
@@ -1299,6 +1335,11 @@ async function savePolyDegree() {
 // 保存距离公式
 async function saveDistanceFormula() {
   await saveConfig('distance_formula', formula.value);
+}
+
+// 保存边长修正系数
+async function saveCorrectionFactor() {
+  await saveConfig('correction_factor', correctionFactor.value.toString());
 }
 
 // 保存配置
@@ -1445,6 +1486,7 @@ async function saveAllConfigs() {
       saveTrendType(),
       savePolyDegree(),
       saveDistanceFormula(),
+      saveCorrectionFactor(),
     ]);
 
     console.log('All configurations saved successfully');
@@ -1532,6 +1574,9 @@ async function resetAllToDefault() {
     });
 
     formula.value = '((524.38/x)**(1/1.003))*100';
+
+    // 重置边长修正系数为默认值
+    correctionFactor.value = 1.0261;
 
     Object.assign(hsv, {
       h1_min: 0,

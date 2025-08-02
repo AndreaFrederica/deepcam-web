@@ -148,26 +148,45 @@
                 <div class="q-mt-sm">
                   <div class="text-caption text-weight-bold">Physical Dimensions:</div>
                   <div>
-                    Size: {{ shape.physical_dimensions.width_mm.toFixed(1) }}×{{
-                      shape.physical_dimensions.height_mm.toFixed(1)
+                    Size:
+                    {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}×{{
+                      (shape.physical_dimensions.height_mm * correctionFactor).toFixed(1)
                     }}mm
                   </div>
-                  <div>Area: {{ shape.physical_dimensions.area_mm2.toFixed(1) }}mm²</div>
+                  <div>
+                    Area:
+                    {{
+                      (
+                        shape.physical_dimensions.area_mm2 *
+                        correctionFactor *
+                        correctionFactor
+                      ).toFixed(1)
+                    }}mm²
+                  </div>
 
                   <!-- 详细信息 - 根据过滤器显示 -->
                   <template v-if="showDetailedInfo">
                     <div v-if="shape.physical_dimensions.diameter_mm > 0">
-                      Diameter: {{ shape.physical_dimensions.diameter_mm.toFixed(1) }}mm
+                      Diameter:
+                      {{ (shape.physical_dimensions.diameter_mm * correctionFactor).toFixed(1) }}mm
                     </div>
                     <div v-if="shape.physical_dimensions.mean_side_length_mm > 0">
-                      Mean Side: {{ shape.physical_dimensions.mean_side_length_mm.toFixed(1) }}mm
+                      Mean Side:
+                      {{
+                        (shape.physical_dimensions.mean_side_length_mm * correctionFactor).toFixed(
+                          1,
+                        )
+                      }}mm
                     </div>
-                    <div>Perimeter: {{ shape.physical_dimensions.perimeter_mm.toFixed(1) }}mm</div>
+                    <div>
+                      Perimeter:
+                      {{ (shape.physical_dimensions.perimeter_mm * correctionFactor).toFixed(1) }}mm
+                    </div>
                     <div class="text-caption">
                       Method: {{ shape.physical_dimensions.measurement_type }} ({{
                         shape.physical_dimensions.mm_per_pixel.toFixed(3)
                       }}
-                      mm/px)
+                      mm/px, correction: {{ correctionFactor.toFixed(4) }})
                     </div>
                   </template>
                 </div>
@@ -182,7 +201,7 @@
                     v-for="(length, idx) in shape.physical_dimensions.side_lengths_mm"
                     :key="idx"
                   >
-                    Side {{ idx + 1 }}: {{ length.toFixed(1) }}mm
+                    Side {{ idx + 1 }}: {{ (length * correctionFactor).toFixed(1) }}mm
                   </div>
                 </div>
 
@@ -208,8 +227,14 @@
               style="background: #fff3cd; border-radius: 4px"
             >
               <div class="text-caption text-weight-bold">A4 Reference:</div>
-              <div>{{ a4Reference.physical_width_mm }}×{{ a4Reference.physical_height_mm }}mm</div>
-              <div class="text-caption">{{ a4Reference.note }}</div>
+              <div>
+                {{ (a4Reference.physical_width_mm * correctionFactor).toFixed(1) }}×{{
+                  (a4Reference.physical_height_mm * correctionFactor).toFixed(1)
+                }}mm
+              </div>
+              <div class="text-caption">
+                {{ a4Reference.note }} (with correction factor: {{ correctionFactor.toFixed(4) }})
+              </div>
             </div>
 
             <!-- OCR 处理时间信息 - 始终显示 -->
@@ -352,6 +377,9 @@ import { reactive, ref, onMounted, onUnmounted } from 'vue';
 
 // 距离公式 - 默认使用标准的距离公式格式
 const formula = ref('((524.38/x)**(1/1.003))*100');
+
+// 边长修正系数
+const correctionFactor = ref<number>(1.0261);
 
 const stats = reactive({
   count: 0,
@@ -619,6 +647,25 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error('Error loading formula configuration:', error);
+  }
+
+  // 加载边长修正系数配置
+  try {
+    const correctionResponse = await fetch('/config/custom_string?key=correction_factor');
+    if (correctionResponse.ok) {
+      const correctionData = await correctionResponse.json();
+      if (correctionData.success && correctionData.value) {
+        const factor = parseFloat(correctionData.value);
+        if (!isNaN(factor) && factor > 0) {
+          correctionFactor.value = factor;
+          console.log('Loaded correction factor:', factor);
+        }
+      } else {
+        console.log('No saved correction factor found, using default:', correctionFactor.value);
+      }
+    }
+  } catch (error) {
+    console.error('Error loading correction factor configuration:', error);
   }
 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
