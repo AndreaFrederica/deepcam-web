@@ -2,7 +2,7 @@
   <q-page padding>
     <!-- 页面标题和全屏按钮 -->
     <div class="row items-center q-mb-md">
-      <div class="text-h5 q-mr-md">CV Debug Extended</div>
+      <q-space />
       <q-btn
         :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
         :label="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
@@ -11,7 +11,6 @@
         outline
         size="sm"
       />
-      <q-space />
     </div>
 
     <div class="row">
