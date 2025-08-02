@@ -5,7 +5,7 @@
       <q-space />
       <q-btn
         :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
-        :label="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
+        :label="isFullscreen ? '退出全屏' : '全屏'"
         @click="toggleFullscreen"
         color="primary"
         outline
@@ -15,16 +15,16 @@
 
     <div class="row">
       <!-- 流媒体显示 -->
-      <div class="col-6">
+      <div class="col-6" v-if="false">
         <q-card flat bordered>
           <q-expansion-item
             default-opened
             icon="videocam"
-            label="Video Streams"
+            label="视频流"
             header-class="text-primary"
           >
             <q-card-section>
-              <div class="text-subtitle2">Processed Stream</div>
+              <div class="text-subtitle2">处理后的流</div>
               <img
                 :src="`/video/processed?formula=${encodeURIComponent(formula)}`"
                 width="100%"
@@ -33,7 +33,7 @@
             </q-card-section>
             <q-separator />
             <q-card-section>
-              <div class="text-subtitle2">Mask Stream</div>
+              <div class="text-subtitle2">掩码流</div>
               <img :src="`/video/mask`" width="100%" alt="Mask" />
             </q-card-section>
           </q-expansion-item>
@@ -44,17 +44,21 @@
       <div class="col-6">
         <q-card flat bordered class="q-pa-md">
           <!-- 物理测量 -->
-          <div class="text-subtitle2">Physical Measurements</div>
+          <div class="flex">
+            <div class="text-subtitle2">物理测量</div>
+            <div class="text-subtitle2">| 当前功率 {{ power.toFixed(3) }} W |</div>
+            <div class="text-subtitle2">最大功率 {{ maxPower.toFixed(3) }} W</div>
+          </div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn
               color="primary"
-              label="Get Measurements"
+              label="获取测量数据"
               @click="getMeasurements"
               :loading="measurementsLoading"
             />
             <q-btn
               color="secondary"
-              label="Minimum Edge"
+              label="最小边缘"
               @click="getMinimumSquareMeasurements"
               :loading="minSquareLoading"
             />
@@ -62,29 +66,77 @@
 
           <!-- OCR测量 -->
           <q-separator class="q-my-md" />
-          <div class="text-subtitle2">OCR Measurement</div>
+          <div class="text-subtitle2">OCR 测量</div>
           <div class="q-mt-sm">
-            <q-input
+            <!-- <q-input
               v-model="ocrTargetText"
-              label="Target Text"
+              label="目标文本"
               dense
               clearable
-              placeholder="Enter text to search for shapes"
-            />
+              placeholder="输入要搜索的形状文本"
+            /> -->
+            <!-- <q-option-group
+              v-model="ocrTargetText"
+              :options="[
+                {
+                  label: '1',
+                  value: '1',
+                },
+                {
+                  label: '2',
+                  value: '2',
+                },
+                {
+                  label: '3',
+                  value: '3',
+                },
+                {
+                  label: '4',
+                  value: '4',
+                },
+                {
+                  label: '5',
+                  value: '5',
+                },
+                {
+                  label: '6',
+                  value: '6',
+                },
+                {
+                  label: '7',
+                  value: '7',
+                },
+                {
+                  label: '8',
+                  value: '8',
+                },
+                {
+                  label: '9',
+                  value: '9',
+                },
+                {
+                  label: '0',
+                  value: '0',
+                },
+              ]"
+              color="primary"
+              inline
+            /> -->
             <div class="row q-gutter-sm q-mt-sm">
-              <q-btn
+              <!-- <q-btn
                 color="accent"
-                label="OCR Analysis"
+                label="OCR 分析"
                 @click="getOcrMeasurements"
                 :loading="ocrLoading"
-              />
+              /> -->
               <q-btn
                 :color="showVirtualKeyboard ? 'negative' : 'primary'"
                 :icon="showVirtualKeyboard ? 'keyboard_hide' : 'keyboard'"
-                :label="showVirtualKeyboard ? 'Hide Keyboard' : 'Show Keyboard'"
+                :label="showVirtualKeyboard ? '隐藏键盘' : '显示键盘'"
                 @click="showVirtualKeyboard = !showVirtualKeyboard"
                 :outline="!showVirtualKeyboard"
               />
+              <q-spinner-gears color="primary" size="2em" v-show="ocrLoading && fucked" />
             </div>
           </div>
 
@@ -92,11 +144,11 @@
           <div v-if="measurements.length > 0" class="q-mt-md">
             <!-- 过滤器控制 -->
             <div class="row items-center q-mb-sm">
-              <div class="text-subtitle2">Measurement Results</div>
+              <div class="text-subtitle2">测量结果</div>
               <q-space />
               <q-btn
                 :icon="showDetailedInfo ? 'visibility_off' : 'visibility'"
-                :label="showDetailedInfo ? 'Hide Details' : 'Show Details'"
+                :label="showDetailedInfo ? '隐藏详情' : '显示详情'"
                 size="sm"
                 flat
                 color="primary"
@@ -104,7 +156,7 @@
               />
             </div>
             <div v-for="crop in measurements" :key="crop.crop_index" class="q-mb-md">
-              <div class="text-subtitle2">Crop {{ crop.crop_index }}</div>
+              <div class="text-subtitle2">裁剪区域 {{ crop.crop_index }}</div>
 
               <!-- Target 信息 -->
               <div
@@ -113,12 +165,12 @@
                 style="background: #f5f5f5; border-radius: 4px"
               >
                 <div>
-                  <strong>Target #{{ crop.target.id }}</strong>
+                  <strong>目标 #{{ crop.target.id }}</strong>
                 </div>
-                <div>Pixel Size: {{ crop.target.crop_width }}×{{ crop.target.crop_height }}</div>
-                <div>Area: {{ crop.target.area }}px</div>
-                <div>Long Edge: {{ crop.target.new_long_px.toFixed(1) }}px</div>
-                <div>Distance: {{ computeDistance(crop.target.new_long_px).toFixed(1) }} cm</div>
+                <div>像素尺寸: {{ crop.target.crop_width }}×{{ crop.target.crop_height }}</div>
+                <div>面积: {{ crop.target.area }}px</div>
+                <div>长边: {{ crop.target.new_long_px.toFixed(1) }}px</div>
+                <div>距离: {{ computeDistance(crop.target.new_long_px).toFixed(1) }} cm</div>
               </div>
 
               <!-- 形状测量结果 -->
@@ -132,10 +184,10 @@
 
                 <!-- 像素尺寸 -->
                 <div class="q-mt-sm">
-                  <div class="text-caption text-weight-bold">Pixel Dimensions:</div>
+                  <div class="text-caption text-weight-bold">像素尺寸:</div>
                   <!-- 如果是边缘检测，只显示长度 -->
                   <div v-if="shape.physical_dimensions.measurement_type === 'minimum_edge'">
-                    Length: {{ shape.pixel_dimensions.width.toFixed(1) }}px
+                    长度: {{ shape.pixel_dimensions.width.toFixed(1) }}px
                   </div>
                   <!-- 如果是圆形，显示直径 -->
                   <div
@@ -145,34 +197,34 @@
                       shape.shape_type.toLowerCase().includes('round')
                     "
                   >
-                    Diameter:
+                    直径:
                     {{
                       Math.max(shape.pixel_dimensions.width, shape.pixel_dimensions.height).toFixed(
                         1,
                       )
                     }}px
-                    <div>Area: {{ shape.pixel_dimensions.area }}px</div>
-                    <div>Perimeter: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
+                    <div>面积: {{ shape.pixel_dimensions.area }}px</div>
+                    <div>周长: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
                   </div>
                   <!-- 如果是普通形状，显示完整尺寸信息 -->
                   <template v-else>
                     <div>
-                      Size: {{ shape.pixel_dimensions.width }}×{{ shape.pixel_dimensions.height }}px
+                      尺寸: {{ shape.pixel_dimensions.width }}×{{ shape.pixel_dimensions.height }}px
                     </div>
-                    <div>Area: {{ shape.pixel_dimensions.area }}px</div>
+                    <div>面积: {{ shape.pixel_dimensions.area }}px</div>
                     <div v-if="shape.pixel_dimensions.mean_side_length > 0">
-                      Mean Side: {{ shape.pixel_dimensions.mean_side_length.toFixed(1) }}px
+                      平均边长: {{ shape.pixel_dimensions.mean_side_length.toFixed(1) }}px
                     </div>
-                    <div>Perimeter: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
+                    <div>周长: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
                   </template>
                 </div>
 
                 <!-- 物理尺寸 -->
                 <div class="q-mt-sm">
-                  <div class="text-caption text-weight-bold">Physical Dimensions:</div>
+                  <div class="text-caption text-weight-bold">物理尺寸:</div>
                   <!-- 如果是边缘检测，只显示长度 -->
                   <div v-if="shape.physical_dimensions.measurement_type === 'minimum_edge'">
-                    Length:
+                    长度:
                     {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}mm
                   </div>
                   <!-- 如果是圆形，显示直径 -->
@@ -182,10 +234,10 @@
                       shape.shape_type.toLowerCase().includes('圆')
                     "
                   >
-                    Diameter:
+                    直径:
                     {{ (shape.physical_dimensions.diameter_mm * correctionFactor).toFixed(1) }}mm
                     <div>
-                      Area:
+                      面积:
                       {{
                         (
                           shape.physical_dimensions.area_mm2 *
@@ -198,13 +250,13 @@
                   <!-- 如果是普通形状，显示完整尺寸信息 -->
                   <template v-else>
                     <div>
-                      Size:
+                      尺寸:
                       {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}×{{
                         (shape.physical_dimensions.height_mm * correctionFactor).toFixed(1)
                       }}mm
                     </div>
                     <div>
-                      Area:
+                      面积:
                       {{
                         (
                           shape.physical_dimensions.area_mm2 *
@@ -218,11 +270,11 @@
                   <!-- 详细信息 - 根据过滤器显示 -->
                   <template v-if="showDetailedInfo">
                     <div v-if="shape.physical_dimensions.diameter_mm > 0">
-                      Diameter:
+                      直径:
                       {{ (shape.physical_dimensions.diameter_mm * correctionFactor).toFixed(1) }}mm
                     </div>
                     <div v-if="shape.physical_dimensions.mean_side_length_mm > 0">
-                      Mean Side:
+                      平均边长:
                       {{
                         (shape.physical_dimensions.mean_side_length_mm * correctionFactor).toFixed(
                           1,
@@ -230,14 +282,14 @@
                       }}mm
                     </div>
                     <div>
-                      Perimeter:
+                      周长:
                       {{ (shape.physical_dimensions.perimeter_mm * correctionFactor).toFixed(1) }}mm
                     </div>
                     <div class="text-caption">
-                      Method: {{ shape.physical_dimensions.measurement_type }} ({{
+                      方法: {{ shape.physical_dimensions.measurement_type }} ({{
                         shape.physical_dimensions.mm_per_pixel.toFixed(3)
                       }}
-                      mm/px, correction: {{ correctionFactor.toFixed(4) }})
+                      mm/px, 修正: {{ correctionFactor.toFixed(4) }})
                     </div>
                   </template>
                 </div>
@@ -247,26 +299,26 @@
                   v-if="showDetailedInfo && shape.physical_dimensions.side_lengths_mm.length > 0"
                   class="q-mt-sm"
                 >
-                  <div class="text-caption text-weight-bold">Side Lengths:</div>
+                  <div class="text-caption text-weight-bold">边长:</div>
                   <div
                     v-for="(length, idx) in shape.physical_dimensions.side_lengths_mm"
                     :key="idx"
                   >
-                    Side {{ idx + 1 }}: {{ (length * correctionFactor).toFixed(1) }}mm
+                    边 {{ idx + 1 }}: {{ (length * correctionFactor).toFixed(1) }}mm
                   </div>
                 </div>
 
                 <!-- OCR 信息 -->
                 <div v-if="shape.ocr_data" class="q-mt-sm">
-                  <div class="text-caption text-weight-bold">OCR Information:</div>
+                  <div class="text-caption text-weight-bold">OCR 信息:</div>
                   <div v-if="shape.ocr_data.detected">
                     <div>
-                      Text: <strong>"{{ shape.ocr_data.text }}"</strong>
+                      文本: <strong>"{{ shape.ocr_data.text }}"</strong>
                     </div>
-                    <div>Confidence: {{ (shape.ocr_data.confidence * 100).toFixed(1) }}%</div>
-                    <div class="text-caption">OCR detected in this shape</div>
+                    <div>置信度: {{ (shape.ocr_data.confidence * 100).toFixed(1) }}%</div>
+                    <div class="text-caption">在此形状中检测到 OCR</div>
                   </div>
-                  <div v-else class="text-caption text-grey">No OCR text detected</div>
+                  <div v-else class="text-caption text-grey">未检测到 OCR 文本</div>
                 </div>
               </div>
             </div>
@@ -277,82 +329,82 @@
               class="q-mt-md q-pa-sm"
               style="background: #fff3cd; border-radius: 4px"
             >
-              <div class="text-caption text-weight-bold">A4 Reference:</div>
+              <div class="text-caption text-weight-bold">A4 参考:</div>
               <div>
                 {{ (a4Reference.physical_width_mm * correctionFactor).toFixed(1) }}×{{
                   (a4Reference.physical_height_mm * correctionFactor).toFixed(1)
                 }}mm
               </div>
               <div class="text-caption">
-                {{ a4Reference.note }} (with correction factor: {{ correctionFactor.toFixed(4) }})
+                {{ a4Reference.note }} (修正系数: {{ correctionFactor.toFixed(4) }})
               </div>
             </div>
 
             <!-- OCR 处理时间信息 - 始终显示 -->
             <div
-              v-if="ocrElapsedTime > 0"
+              v-if="false && ocrElapsedTime > 0"
               class="q-mt-md q-pa-sm"
               style="background: #e8f5e8; border-radius: 4px"
             >
-              <div class="text-caption text-weight-bold">OCR Processing Time:</div>
-              <div>{{ ocrElapsedTime.toFixed(3) }} seconds</div>
+              <div class="text-caption text-weight-bold">OCR 处理时间:</div>
+              <div>{{ ocrElapsedTime.toFixed(3) }} 秒</div>
             </div>
           </div>
 
           <q-separator class="q-my-md" />
 
           <!-- 全局统计 -->
-          <div class="text-subtitle2 q-mt-lg">Statistics</div>
+          <div class="text-subtitle2 q-mt-lg">统计信息</div>
           <div class="q-mt-sm">
             <div>
-              Rectangles: <strong>{{ stats.count }}</strong>
+              矩形数量: <strong>{{ stats.count }}</strong>
             </div>
             <div>
-              Total Pixels: <strong>{{ stats.total_pixels }}</strong>
+              总像素: <strong>{{ stats.total_pixels }}</strong>
             </div>
             <div>
-              Frame Ratio: <strong>{{ (stats.frame_ratio * 100).toFixed(2) }}%</strong>
+              帧比率: <strong>{{ (stats.frame_ratio * 100).toFixed(2) }}%</strong>
             </div>
             <div>
-              Black Ratio: <strong>{{ (stats.black_ratio * 100).toFixed(2) }}%</strong>
+              黑色比率: <strong>{{ (stats.black_ratio * 100).toFixed(2) }}%</strong>
             </div>
             <div>
-              FPS: <strong>{{ stats.fps.toFixed(1) }}</strong>
+              帧率: <strong>{{ stats.fps.toFixed(1) }}</strong>
             </div>
           </div>
 
           <q-separator class="q-my-md" />
 
           <!-- 检测到的矩形详情 -->
-          <div class="text-subtitle2">Detected Rectangles</div>
+          <div class="text-subtitle2">检测到的矩形</div>
           <div v-for="r in displayedRects" :key="r.id">
             <div>
               <strong>#{{ r.id }}</strong>
             </div>
-            <div>Outer: {{ r.outer_width }}×{{ r.outer_height }}</div>
-            <div>Area: {{ r.area }}px</div>
-            <div>New Edge: {{ r.new_long_px.toFixed(1) }}px</div>
-            <div>Dist: {{ computeDistance(r.new_long_px).toFixed(1) }} cm</div>
-            <div>Shape: {{ r.shape_type }}</div>
-            <div>Inner: {{ r.inner_width }}×{{ r.inner_height }} (area {{ r.inner_area }}px)</div>
-            <div>Info: {{ r.inner_info }}</div>
+            <div>外框: {{ r.outer_width }}×{{ r.outer_height }}</div>
+            <div>面积: {{ r.area }}px</div>
+            <div>新边: {{ r.new_long_px.toFixed(1) }}px</div>
+            <div>距离: {{ computeDistance(r.new_long_px).toFixed(1) }} cm</div>
+            <div>形状: {{ r.shape_type }}</div>
+            <div>内框: {{ r.inner_width }}×{{ r.inner_height }} (面积 {{ r.inner_area }}px)</div>
+            <div>信息: {{ r.inner_info }}</div>
           </div>
         </q-card>
       </div>
     </div>
 
     <!-- 软键盘弹窗 -->
-    <q-dialog v-model="showVirtualKeyboard" position="bottom" maximized>
+    <q-dialog v-model="showVirtualKeyboard" position="standard" maximized full-width full-height>
       <q-card class="virtual-keyboard">
         <q-card-section class="row items-center q-pa-sm bg-primary text-white">
-          <div class="text-h6">Virtual Keyboard</div>
+          <div class="text-h6">虚拟键盘</div>
           <q-space />
           <q-btn icon="close" flat round dense @click="closeKeyboard" />
         </q-card-section>
 
         <q-card-section class="q-pa-md">
           <!-- 输入显示 -->
-          <q-input v-model="ocrTargetText" label="Target Text" dense outlined class="q-mb-md" />
+          <q-input v-model="ocrTargetText" label="目标文本" dense outlined class="q-mb-md" />
 
           <!-- 键盘布局 -->
           <div class="keyboard-layout">
@@ -403,14 +455,14 @@
             <!-- 功能键行 -->
             <div class="keyboard-row">
               <q-btn
-                label="Space"
+                label="空格"
                 class="keyboard-key keyboard-key-wide"
                 @click="onKeyPress('Space')"
               />
               <q-btn label="⌫" class="keyboard-key" @click="onKeyPress('Backspace')" />
-              <q-btn label="Clear" class="keyboard-key" @click="onKeyPress('Clear')" />
+              <q-btn label="清空" class="keyboard-key" @click="onKeyPress('Clear')" />
               <q-btn
-                label="Search"
+                label="搜索"
                 class="keyboard-key keyboard-key-primary"
                 color="primary"
                 @click="onKeyPress('Enter')"
@@ -424,7 +476,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, onUnmounted } from 'vue';
+import { reactive, ref, onMounted, onUnmounted, watch } from 'vue';
 
 // 距离公式 - 默认使用标准的距离公式格式
 const formula = ref('((524.38/x)**(1/1.003))*100');
@@ -441,12 +493,19 @@ const stats = reactive({
 });
 
 // 2. 显示用的矩形列表，带延迟清除
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const displayedRects = ref<any[]>([]);
 const removalTimers = new Map<number, number>();
 
 // 物理测量相关
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cachedMeasurements = ref<any[] | undefined>(undefined);
+const cached = ref(false);
+const fucked = ref(false);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const measurements = ref<any[]>([]);
 const measurementsLoading = ref(false);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const a4Reference = ref<any>(null);
 
 // 最小正方形测量相关
@@ -474,7 +533,7 @@ function onKeyPress(key: string) {
     ocrTargetText.value += ' ';
   } else if (key === 'Enter') {
     showVirtualKeyboard.value = false;
-    void getOcrMeasurements();
+    void getOrWaitOcrMeasurements();
   } else if (key === 'Clear') {
     ocrTargetText.value = '';
   } else {
@@ -496,7 +555,7 @@ function toggleFullscreen() {
         isFullscreen.value = true;
       })
       .catch((err) => {
-        console.error('Error attempting to enable fullscreen:', err);
+        console.error('进入全屏时出错:', err);
       });
   } else {
     // 退出全屏
@@ -506,7 +565,7 @@ function toggleFullscreen() {
         isFullscreen.value = false;
       })
       .catch((err) => {
-        console.error('Error attempting to exit fullscreen:', err);
+        console.error('退出全屏时出错:', err);
       });
   }
 }
@@ -524,8 +583,25 @@ function computeDistance(px: number) {
     const formulaWithValue = formula.value.replace(/x/g, px.toString());
     return eval(formulaWithValue);
   } catch (error) {
-    console.error('Error calculating distance:', error, 'Formula:', formula.value, 'Pixel:', px);
+    console.error('计算距离时出错:', error, '公式:', formula.value, '像素:', px);
     return 0;
+  }
+}
+
+async function getPower() {
+  try {
+    const response = await fetch('/api/ina226/measurements');
+    const data = await response.json();
+    if (response.status === 200) {
+      power.value = data.data.power_w || 0;
+      if (data.data.power_w > maxPower.value) {
+        maxPower.value = data.data.power_w;
+      }
+    } else {
+      console.error('获取功率数据失败:', data);
+    }
+  } catch (error) {
+    console.error('获取功率数据时出错:', error);
   }
 }
 
@@ -540,11 +616,11 @@ async function getMeasurements() {
       measurements.value = data.measurements || [];
       a4Reference.value = data.a4_reference || null;
     } else {
-      console.error('Failed to get measurements:', data);
+      console.error('获取测量数据失败:', data);
       measurements.value = [];
     }
   } catch (error) {
-    console.error('Error fetching measurements:', error);
+    console.error('获取测量数据时出错:', error);
     measurements.value = [];
   } finally {
     measurementsLoading.value = false;
@@ -604,19 +680,49 @@ async function getMinimumSquareMeasurements() {
       a4Reference.value = {
         physical_width_mm: data.edge_length_mm,
         physical_height_mm: data.edge_length_mm,
-        note: `Minimum edge detected at center (${data.center[0]}, ${data.center[1]}), length: ${data.edge_length_mm.toFixed(2)}mm`,
+        note: `在中心 (${data.center[0]}, ${data.center[1]}) 检测到最小边缘，长度: ${data.edge_length_mm.toFixed(2)}mm`,
       };
     } else {
-      console.error('No minimum edge found:', data);
+      console.error('未找到最小边缘:', data);
       measurements.value = [];
       a4Reference.value = null;
     }
   } catch (error) {
-    console.error('Error fetching minimum edge measurements:', error);
+    console.error('获取最小边缘测量数据时出错:', error);
     measurements.value = [];
   } finally {
     minSquareLoading.value = false;
   }
+}
+
+async function getOrWaitOcrMeasurements() {
+  // 等待数据加载完成
+  fucked.value = true; // 设置状态为已获取数据
+  while (!cached.value || !cachedMeasurements.value) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  console.log(cachedMeasurements.value);
+  // 数据准备好后，过滤并设置measurements
+  measurements.value = cachedMeasurements.value
+    .map((crop) => ({
+      ...crop,
+      shapes: crop.shapes.filter((shape: { ocr_data: { detected: boolean; text: string } }) => {
+        // 如果输入框为空，显示所有检测到OCR的形状
+        if (!ocrTargetText.value.trim()) {
+          return shape.ocr_data.detected;
+        }
+        // 否则只显示包含目标文字的形状
+        return (
+          shape.ocr_data.detected &&
+          shape.ocr_data.text.toLowerCase().includes(ocrTargetText.value.toLowerCase())
+        );
+      }),
+    }))
+    .filter((crop) => crop.shapes.length > 0);
+  cached.value = false; // 重置缓存状态
+  cachedMeasurements.value = undefined; // 清除缓存数据
+  fucked.value = false; // 重置状态
 }
 
 // 获取OCR测量数据
@@ -624,6 +730,7 @@ async function getOcrMeasurements() {
   ocrLoading.value = true;
   try {
     const response = await fetch('/api/ocr_measurement_analysis');
+    // const response = await fetch('/api/ocr');
     const data = await response.json();
 
     if (data.success) {
@@ -632,21 +739,12 @@ async function getOcrMeasurements() {
 
       // 过滤出包含目标文字的形状
       const filteredMeasurements = data.analysis
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((crop: any) => ({
           crop_index: crop.crop_index,
           target: crop.target,
           shapes: crop.shapes
-            .filter((shape: any) => {
-              // 如果输入框为空，显示所有检测到OCR的形状
-              if (!ocrTargetText.value.trim()) {
-                return shape.ocr_data.detected;
-              }
-              // 否则只显示包含目标文字的形状
-              return (
-                shape.ocr_data.detected &&
-                shape.ocr_data.text.toLowerCase().includes(ocrTargetText.value.toLowerCase())
-              );
-            })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .map((shape: any) => ({
               shape_index: shape.shape_index,
               shape_type: `${shape.shape_type} (OCR: "${shape.ocr_data.text}")`,
@@ -672,17 +770,19 @@ async function getOcrMeasurements() {
               ocr_data: shape.ocr_data,
             })),
         }))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((crop: any) => crop.shapes.length > 0); // 只保留有匹配形状的crop
 
-      measurements.value = filteredMeasurements;
-      a4Reference.value = data.references || null;
+      cachedMeasurements.value = filteredMeasurements;
+      cached.value = true;
+      // a4Reference.value = data.references || null;
     } else {
-      console.error('Failed to get OCR measurements:', data);
-      measurements.value = [];
+      console.error('获取 OCR 测量数据失败:', data);
+      cachedMeasurements.value = undefined;
     }
   } catch (error) {
-    console.error('Error fetching OCR measurements:', error);
-    measurements.value = [];
+    console.error('获取 OCR 测量数据时出错:', error);
+    cachedMeasurements.value = undefined;
   } finally {
     ocrLoading.value = false;
   }
@@ -699,13 +799,13 @@ onMounted(async () => {
       const formulaData = await formulaResponse.json();
       if (formulaData.success && formulaData.value) {
         formula.value = formulaData.value;
-        console.log('Loaded distance formula:', formula.value);
+        console.log('已加载距离公式:', formula.value);
       } else {
-        console.log('No saved distance formula found, using default');
+        console.log('未找到保存的距离公式，使用默认值');
       }
     }
   } catch (error) {
-    console.error('Error loading formula configuration:', error);
+    console.error('加载公式配置时出错:', error);
   }
 
   // 加载边长修正系数配置
@@ -717,14 +817,14 @@ onMounted(async () => {
         const factor = parseFloat(correctionData.value);
         if (!isNaN(factor) && factor > 0) {
           correctionFactor.value = factor;
-          console.log('Loaded correction factor:', factor);
+          console.log('已加载修正系数:', factor);
         }
       } else {
-        console.log('No saved correction factor found, using default:', correctionFactor.value);
+        console.log('未找到保存的修正系数，使用默认值:', correctionFactor.value);
       }
     }
   } catch (error) {
-    console.error('Error loading correction factor configuration:', error);
+    console.error('加载修正系数配置时出错:', error);
   }
 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -741,6 +841,7 @@ onMounted(async () => {
     stats.fps = s.fps;
 
     // 新推送的 rect id 集合
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const incoming = s.rects as any[];
     const newIds = new Set(incoming.map((r) => r.id));
 
@@ -776,6 +877,28 @@ onMounted(async () => {
 // 清理事件监听器
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  if (timer.value) {
+    clearInterval(timer.value);
+    timer.value = undefined;
+  }
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const timer = ref<any>(undefined);
+const power = ref(0);
+const maxPower = ref(0);
+
+onMounted(() => {
+  // 每 5 秒获取物理测量数据
+  timer.value = setInterval(() => {
+    void getPower();
+  }, 1000);
+});
+
+watch(showVirtualKeyboard, async (newValue) => {
+  if (newValue) {
+    await getOcrMeasurements();
+  }
 });
 </script>
 
