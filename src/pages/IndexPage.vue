@@ -54,7 +54,7 @@
             />
             <q-btn
               color="secondary"
-              label="Minimum Square"
+              label="Minimum Edge"
               @click="getMinimumSquareMeasurements"
               :loading="minSquareLoading"
             />
@@ -133,35 +133,87 @@
                 <!-- 像素尺寸 -->
                 <div class="q-mt-sm">
                   <div class="text-caption text-weight-bold">Pixel Dimensions:</div>
-                  <div>
-                    Size: {{ shape.pixel_dimensions.width }}×{{ shape.pixel_dimensions.height }}px
+                  <!-- 如果是边缘检测，只显示长度 -->
+                  <div v-if="shape.physical_dimensions.measurement_type === 'minimum_edge'">
+                    Length: {{ shape.pixel_dimensions.width.toFixed(1) }}px
                   </div>
-                  <div>Area: {{ shape.pixel_dimensions.area }}px</div>
-                  <div v-if="shape.pixel_dimensions.mean_side_length > 0">
-                    Mean Side: {{ shape.pixel_dimensions.mean_side_length.toFixed(1) }}px
+                  <!-- 如果是圆形，显示直径 -->
+                  <div
+                    v-else-if="
+                      shape.shape_type.toLowerCase().includes('circle') ||
+                      shape.shape_type.toLowerCase().includes('圆') ||
+                      shape.shape_type.toLowerCase().includes('round')
+                    "
+                  >
+                    Diameter:
+                    {{
+                      Math.max(shape.pixel_dimensions.width, shape.pixel_dimensions.height).toFixed(
+                        1,
+                      )
+                    }}px
+                    <div>Area: {{ shape.pixel_dimensions.area }}px</div>
+                    <div>Perimeter: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
                   </div>
-                  <div>Perimeter: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
+                  <!-- 如果是普通形状，显示完整尺寸信息 -->
+                  <template v-else>
+                    <div>
+                      Size: {{ shape.pixel_dimensions.width }}×{{ shape.pixel_dimensions.height }}px
+                    </div>
+                    <div>Area: {{ shape.pixel_dimensions.area }}px</div>
+                    <div v-if="shape.pixel_dimensions.mean_side_length > 0">
+                      Mean Side: {{ shape.pixel_dimensions.mean_side_length.toFixed(1) }}px
+                    </div>
+                    <div>Perimeter: {{ shape.pixel_dimensions.perimeter.toFixed(1) }}px</div>
+                  </template>
                 </div>
 
                 <!-- 物理尺寸 -->
                 <div class="q-mt-sm">
                   <div class="text-caption text-weight-bold">Physical Dimensions:</div>
-                  <div>
-                    Size:
-                    {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}×{{
-                      (shape.physical_dimensions.height_mm * correctionFactor).toFixed(1)
-                    }}mm
+                  <!-- 如果是边缘检测，只显示长度 -->
+                  <div v-if="shape.physical_dimensions.measurement_type === 'minimum_edge'">
+                    Length:
+                    {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}mm
                   </div>
-                  <div>
-                    Area:
-                    {{
-                      (
-                        shape.physical_dimensions.area_mm2 *
-                        correctionFactor *
-                        correctionFactor
-                      ).toFixed(1)
-                    }}mm²
+                  <!-- 如果是圆形，显示直径 -->
+                  <div
+                    v-else-if="
+                      shape.shape_type.toLowerCase().includes('circle') ||
+                      shape.shape_type.toLowerCase().includes('圆')
+                    "
+                  >
+                    Diameter:
+                    {{ (shape.physical_dimensions.diameter_mm * correctionFactor).toFixed(1) }}mm
+                    <div>
+                      Area:
+                      {{
+                        (
+                          shape.physical_dimensions.area_mm2 *
+                          correctionFactor *
+                          correctionFactor
+                        ).toFixed(1)
+                      }}mm²
+                    </div>
                   </div>
+                  <!-- 如果是普通形状，显示完整尺寸信息 -->
+                  <template v-else>
+                    <div>
+                      Size:
+                      {{ (shape.physical_dimensions.width_mm * correctionFactor).toFixed(1) }}×{{
+                        (shape.physical_dimensions.height_mm * correctionFactor).toFixed(1)
+                      }}mm
+                    </div>
+                    <div>
+                      Area:
+                      {{
+                        (
+                          shape.physical_dimensions.area_mm2 *
+                          correctionFactor *
+                          correctionFactor
+                        ).toFixed(1)
+                      }}mm²
+                    </div>
+                  </template>
 
                   <!-- 详细信息 - 根据过滤器显示 -->
                   <template v-if="showDetailedInfo">
@@ -503,56 +555,64 @@ async function getMeasurements() {
 async function getMinimumSquareMeasurements() {
   minSquareLoading.value = true;
   try {
-    const response = await fetch('/api/minimum_square_measurements');
+    const response = await fetch('/api/minimum_square');
     const data = await response.json();
 
-    if (data.success) {
-      // 将最小正方形数据格式转换为兼容现有显示格式
-      const convertedMeasurements = data.measurements.map((crop: any) => ({
-        crop_index: crop.crop_index,
-        target: crop.target,
-        shapes: crop.squares.map((square: any) => ({
-          shape_index: square.shape_index,
-          shape_type: square.found ? `Square (${square.type})` : 'Square (not found)',
-          pixel_dimensions: {
-            width: square.pixel_dimensions?.width || 0,
-            height: square.pixel_dimensions?.height || 0,
-            area: square.area || 0,
-            side_lengths: square.found
-              ? [square.side_length, square.side_length, square.side_length, square.side_length]
-              : [],
-            mean_side_length: square.side_length || 0,
-            perimeter: square.pixel_dimensions?.perimeter || 0,
+    if (data.found) {
+      // 将最短边数据格式转换为兼容现有显示格式
+      const convertedMeasurements = [
+        {
+          crop_index: 1,
+          target: {
+            id: 1,
+            crop_width: Math.abs(data.end_point[0] - data.start_point[0]),
+            crop_height: Math.abs(data.end_point[1] - data.start_point[1]),
+            area:
+              Math.abs(data.end_point[0] - data.start_point[0]) *
+              Math.abs(data.end_point[1] - data.start_point[1]),
+            new_long_px: data.edge_length_px,
           },
-          physical_dimensions: {
-            width_mm: square.physical_dimensions?.width_mm || 0,
-            height_mm: square.physical_dimensions?.height_mm || 0,
-            area_mm2: square.physical_dimensions?.area_mm2 || 0,
-            diameter_mm: 0,
-            side_lengths_mm: square.found
-              ? [
-                  square.physical_dimensions?.side_length_mm || 0,
-                  square.physical_dimensions?.side_length_mm || 0,
-                  square.physical_dimensions?.side_length_mm || 0,
-                  square.physical_dimensions?.side_length_mm || 0,
-                ]
-              : [],
-            mean_side_length_mm: square.physical_dimensions?.side_length_mm || 0,
-            perimeter_mm: square.physical_dimensions?.perimeter_mm || 0,
-            measurement_type: 'minimum_square',
-            mm_per_pixel: square.physical_dimensions?.mm_per_pixel || 0,
-          },
-        })),
-      }));
+          shapes: [
+            {
+              shape_index: 1,
+              shape_type: `Minimum Edge (${data.type})`,
+              pixel_dimensions: {
+                width: data.edge_length_px, // 边长像素值
+                height: 0, // 边长没有高度
+                area: 0, // 边长没有面积
+                side_lengths: [data.edge_length_px],
+                mean_side_length: data.edge_length_px,
+                perimeter: 0, // 边长没有周长
+              },
+              physical_dimensions: {
+                width_mm: data.edge_length_mm, // 边长毫米值
+                height_mm: 0, // 边长没有高度
+                area_mm2: 0, // 边长没有面积
+                diameter_mm: 0,
+                side_lengths_mm: [data.edge_length_mm],
+                mean_side_length_mm: data.edge_length_mm,
+                perimeter_mm: 0, // 边长没有周长
+                measurement_type: 'minimum_edge',
+                mm_per_pixel: data.edge_length_mm / data.edge_length_px,
+              },
+            },
+          ],
+        },
+      ];
 
       measurements.value = convertedMeasurements;
-      a4Reference.value = data.a4_reference || null;
+      a4Reference.value = {
+        physical_width_mm: data.edge_length_mm,
+        physical_height_mm: data.edge_length_mm,
+        note: `Minimum edge detected at center (${data.center[0]}, ${data.center[1]}), length: ${data.edge_length_mm.toFixed(2)}mm`,
+      };
     } else {
-      console.error('Failed to get minimum square measurements:', data);
+      console.error('No minimum edge found:', data);
       measurements.value = [];
+      a4Reference.value = null;
     }
   } catch (error) {
-    console.error('Error fetching minimum square measurements:', error);
+    console.error('Error fetching minimum edge measurements:', error);
     measurements.value = [];
   } finally {
     minSquareLoading.value = false;
