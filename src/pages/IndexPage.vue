@@ -1,7 +1,18 @@
 <template>
   <q-page padding>
-    <!-- 页面标题 -->
-    <div class="text-h5 q-mb-md">CV Debug Extended</div>
+    <!-- 页面标题和全屏按钮 -->
+    <div class="row items-center q-mb-md">
+      <div class="text-h5 q-mr-md">CV Debug Extended</div>
+      <q-btn
+        :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
+        :label="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
+        @click="toggleFullscreen"
+        color="primary"
+        outline
+        size="sm"
+      />
+      <q-space />
+    </div>
 
     <div class="row">
       <!-- 流媒体显示 -->
@@ -61,13 +72,21 @@
               clearable
               placeholder="Enter text to search for shapes"
             />
-            <q-btn
-              color="accent"
-              label="OCR Analysis"
-              @click="getOcrMeasurements"
-              :loading="ocrLoading"
-              class="q-mt-sm"
-            />
+            <div class="row q-gutter-sm q-mt-sm">
+              <q-btn
+                color="accent"
+                label="OCR Analysis"
+                @click="getOcrMeasurements"
+                :loading="ocrLoading"
+              />
+              <q-btn
+                :color="showVirtualKeyboard ? 'negative' : 'primary'"
+                :icon="showVirtualKeyboard ? 'keyboard_hide' : 'keyboard'"
+                :label="showVirtualKeyboard ? 'Hide Keyboard' : 'Show Keyboard'"
+                @click="showVirtualKeyboard = !showVirtualKeyboard"
+                :outline="!showVirtualKeyboard"
+              />
+            </div>
           </div>
 
           <!-- 测量结果展示 -->
@@ -245,11 +264,91 @@
         </q-card>
       </div>
     </div>
+
+    <!-- 软键盘弹窗 -->
+    <q-dialog v-model="showVirtualKeyboard" position="bottom" maximized>
+      <q-card class="virtual-keyboard">
+        <q-card-section class="row items-center q-pa-sm bg-primary text-white">
+          <div class="text-h6">Virtual Keyboard</div>
+          <q-space />
+          <q-btn icon="close" flat round dense @click="closeKeyboard" />
+        </q-card-section>
+
+        <q-card-section class="q-pa-md">
+          <!-- 输入显示 -->
+          <q-input v-model="ocrTargetText" label="Target Text" dense outlined class="q-mb-md" />
+
+          <!-- 键盘布局 -->
+          <div class="keyboard-layout">
+            <!-- 第一行 -->
+            <div class="keyboard-row">
+              <q-btn
+                v-for="key in ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P']"
+                :key="key"
+                :label="key"
+                class="keyboard-key"
+                @click="onKeyPress(key)"
+              />
+            </div>
+
+            <!-- 第二行 -->
+            <div class="keyboard-row">
+              <q-btn
+                v-for="key in ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L']"
+                :key="key"
+                :label="key"
+                class="keyboard-key"
+                @click="onKeyPress(key)"
+              />
+            </div>
+
+            <!-- 第三行 -->
+            <div class="keyboard-row">
+              <q-btn
+                v-for="key in ['Z', 'X', 'C', 'V', 'B', 'N', 'M']"
+                :key="key"
+                :label="key"
+                class="keyboard-key"
+                @click="onKeyPress(key)"
+              />
+            </div>
+
+            <!-- 数字行 -->
+            <div class="keyboard-row">
+              <q-btn
+                v-for="key in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']"
+                :key="key"
+                :label="key"
+                class="keyboard-key"
+                @click="onKeyPress(key)"
+              />
+            </div>
+
+            <!-- 功能键行 -->
+            <div class="keyboard-row">
+              <q-btn
+                label="Space"
+                class="keyboard-key keyboard-key-wide"
+                @click="onKeyPress('Space')"
+              />
+              <q-btn label="⌫" class="keyboard-key" @click="onKeyPress('Backspace')" />
+              <q-btn label="Clear" class="keyboard-key" @click="onKeyPress('Clear')" />
+              <q-btn
+                label="Search"
+                class="keyboard-key keyboard-key-primary"
+                color="primary"
+                @click="onKeyPress('Enter')"
+              />
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, onUnmounted } from 'vue';
 
 // 距离公式 - 默认使用标准的距离公式格式
 const formula = ref('((524.38/x)**(1/1.003))*100');
@@ -281,6 +380,62 @@ const ocrElapsedTime = ref(0);
 
 // 过滤器相关
 const showDetailedInfo = ref(false);
+
+// 软键盘相关
+const showVirtualKeyboard = ref(false);
+
+// 全屏相关
+const isFullscreen = ref(false);
+
+// 软键盘方法
+function onKeyPress(key: string) {
+  if (key === 'Backspace') {
+    ocrTargetText.value = ocrTargetText.value.slice(0, -1);
+  } else if (key === 'Space') {
+    ocrTargetText.value += ' ';
+  } else if (key === 'Enter') {
+    showVirtualKeyboard.value = false;
+    void getOcrMeasurements();
+  } else if (key === 'Clear') {
+    ocrTargetText.value = '';
+  } else {
+    ocrTargetText.value += key;
+  }
+}
+
+function closeKeyboard() {
+  showVirtualKeyboard.value = false;
+}
+
+// 全屏切换方法
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    // 进入全屏
+    document.documentElement
+      .requestFullscreen()
+      .then(() => {
+        isFullscreen.value = true;
+      })
+      .catch((err) => {
+        console.error('Error attempting to enable fullscreen:', err);
+      });
+  } else {
+    // 退出全屏
+    document
+      .exitFullscreen()
+      .then(() => {
+        isFullscreen.value = false;
+      })
+      .catch((err) => {
+        console.error('Error attempting to exit fullscreen:', err);
+      });
+  }
+}
+
+// 监听全屏状态变化
+function handleFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement;
+}
 
 // 计算距离：使用拟合公式进行逆运算
 function computeDistance(px: number) {
@@ -447,6 +602,9 @@ async function getOcrMeasurements() {
 }
 
 onMounted(async () => {
+  // 添加全屏状态监听
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+
   // 直接加载保存的距离公式配置
   try {
     const formulaResponse = await fetch('/config/custom_string?key=distance_formula');
@@ -508,6 +666,11 @@ onMounted(async () => {
     });
   };
 });
+
+// 清理事件监听器
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+});
 </script>
 
 <style scoped>
@@ -530,5 +693,56 @@ onMounted(async () => {
   padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
+}
+
+/* 软键盘样式 */
+.virtual-keyboard {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.keyboard-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keyboard-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.keyboard-key {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.keyboard-key-wide {
+  min-width: 200px;
+}
+
+.keyboard-key-primary {
+  min-width: 80px;
+}
+
+@media (max-width: 600px) {
+  .keyboard-key {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 14px;
+  }
+
+  .keyboard-key-wide {
+    min-width: 160px;
+  }
+
+  .keyboard-key-primary {
+    min-width: 70px;
+  }
 }
 </style>

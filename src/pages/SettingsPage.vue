@@ -610,7 +610,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, reactive } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue';
 import CurveChart from 'components/CurveChart.vue';
 import regression from 'regression';
 
@@ -795,6 +795,18 @@ const currentPixelHeight = ref<number>(0);
 const distanceHistory = ref<number[]>([]);
 const maxHistoryLength = 5; // 保持最近5次测量的平均值
 
+// 实时监控定时器
+let monitoringInterval: number | null = null;
+
+// 停止实时监控
+function stopRealTimeMonitoring() {
+  if (monitoringInterval !== null) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+    console.log('实时监控已停止');
+  }
+}
+
 // 获取趋势类型的中文名称
 function getTrendTypeName(type: string) {
   const typeMap: Record<string, string> = {
@@ -809,10 +821,45 @@ function getTrendTypeName(type: string) {
 
 // 拟合计算函数
 function computeFit() {
-  const data: [number, number][] = sortedPoints.value.map((p) => [p.x, p.y]);
-  let result: { string: string; r2: number; predict: (x: number) => [number, number] };
-
   try {
+    console.log('开始计算拟合...');
+    console.log('当前点数据:', points.value);
+    console.log('拟合类型:', trendType.value);
+
+    // 检查数据有效性
+    if (!Array.isArray(points.value) || points.value.length === 0) {
+      console.error('点数据无效，无法进行拟合');
+      equation.value = 'Error: No data points';
+      r2.value = 0;
+      return;
+    }
+
+    // 过滤掉无效的数据点
+    const validPoints = points.value.filter(
+      (p) =>
+        p &&
+        typeof p.x === 'number' &&
+        typeof p.y === 'number' &&
+        !isNaN(p.x) &&
+        !isNaN(p.y) &&
+        p.x > 0 &&
+        p.y > 0,
+    );
+
+    if (validPoints.length < 2) {
+      console.error('有效数据点不足，需要至少2个点');
+      equation.value = 'Error: Insufficient valid data points';
+      r2.value = 0;
+      return;
+    }
+
+    console.log('有效数据点:', validPoints.length, '个');
+
+    const data: [number, number][] = validPoints.map((p) => [p.x, p.y]);
+    let result: { string: string; r2: number; predict: (x: number) => [number, number] };
+
+    console.log('准备进行', trendType.value, '拟合');
+
     switch (trendType.value) {
       case 'Linear':
         result = regression.linear(data, { precision: 15 });
@@ -838,53 +885,103 @@ function computeFit() {
         break;
     }
 
+    // 检查拟合结果有效性
+    if (!result || typeof result.string !== 'string' || typeof result.r2 !== 'number') {
+      throw new Error('拟合结果无效');
+    }
+
     // 设置公式和R²
     equation.value = result.string;
     r2.value = result.r2;
 
-    // 输出调试信息
-    console.log('Regression Results:', {
+    // 更新拟合点
+    fitResults.value = validPoints.map((p) => {
+      try {
+        const yPred = result.predict(p.x)[1];
+        return { x: p.x, y: yPred };
+      } catch {
+        console.warn('预测点计算失败，使用原始值');
+        return { x: p.x, y: p.y }; // 使用原始值作为备选
+      }
+    }); // 输出调试信息
+    console.log('✓ 拟合计算成功:', {
       type: trendType.value,
       equation: result.string,
       r2: result.r2,
       dataPoints: data.length,
-      coefficients: 'equation' in result ? result.equation : 'N/A',
+      validPoints: validPoints.length,
     });
+
+    // 保存公式到配置
+    void saveFormula();
   } catch (error) {
     console.error('Regression calculation error:', error);
+
     // 回退到基础计算（不使用precision参数）
-    switch (trendType.value) {
-      case 'Linear':
-        result = regression.linear(data);
-        break;
-      case 'Logarithmic':
-        result = regression.logarithmic(data);
-        break;
-      case 'Exponential':
-        result = regression.exponential(data);
-        break;
-      case 'Power':
-        result = regression.power(data);
-        break;
-      case 'Polynomial':
-        result = regression.polynomial(data, { order: polyDegree.value });
-        break;
-      default:
-        result = regression.power(data);
-        break;
+    try {
+      console.log('尝试基础拟合计算...');
+      const validPoints = points.value.filter(
+        (p) =>
+          p &&
+          typeof p.x === 'number' &&
+          typeof p.y === 'number' &&
+          !isNaN(p.x) &&
+          !isNaN(p.y) &&
+          p.x > 0 &&
+          p.y > 0,
+      );
+
+      if (validPoints.length < 2) {
+        throw new Error('有效数据点不足');
+      }
+
+      const data: [number, number][] = validPoints.map((p) => [p.x, p.y]);
+      let result: { string: string; r2: number; predict: (x: number) => [number, number] };
+
+      switch (trendType.value) {
+        case 'Linear':
+          result = regression.linear(data);
+          break;
+        case 'Logarithmic':
+          result = regression.logarithmic(data);
+          break;
+        case 'Exponential':
+          result = regression.exponential(data);
+          break;
+        case 'Power':
+          result = regression.power(data);
+          break;
+        case 'Polynomial':
+          result = regression.polynomial(data, { order: polyDegree.value });
+          break;
+        default:
+          result = regression.power(data);
+          break;
+      }
+
+      equation.value = result.string;
+      r2.value = result.r2;
+
+      // 更新拟合点
+      fitResults.value = validPoints.map((p) => {
+        try {
+          const yPred = result.predict(p.x)[1];
+          return { x: p.x, y: yPred };
+        } catch {
+          return { x: p.x, y: p.y };
+        }
+      });
+
+      console.log('✓ 基础拟合计算成功');
+      void saveFormula();
+    } catch (fallbackError) {
+      console.error('基础拟合计算也失败:', fallbackError);
+      // 最后的备选方案
+      equation.value = 'Error: Calculation failed';
+      r2.value = 0;
+      fitResults.value = [];
     }
-    equation.value = result.string;
-    r2.value = result.r2;
   }
-
-  // 更新拟合点
-  fitResults.value = sortedPoints.value.map((p) => {
-    const yPred = result.predict(p.x)[1];
-    return { x: p.x, y: yPred };
-  });
-
-  // 保存公式到配置
-  void saveFormula();
 }
 
 // 获取实时距离信息
@@ -968,26 +1065,38 @@ async function fetchCurrentDistance() {
 
 // 开始实时监控
 function startRealTimeMonitoring() {
+  // 先停止之前的监控
+  stopRealTimeMonitoring();
+
   // 初始获取一次
   void fetchCurrentDistance();
 
   // 每1000ms更新一次（降低频率减少抖动）
-  setInterval(() => {
+  monitoringInterval = window.setInterval(() => {
     void fetchCurrentDistance();
   }, 1000);
+
+  console.log('实时监控已启动');
 }
 
 // 配置管理函数
 async function loadConfig() {
   try {
     configLoading.value = true;
+    console.log('开始加载配置...');
 
     // 获取主配置
     const configResponse = await fetch('/config');
+    if (!configResponse.ok) {
+      throw new Error(`Config API failed: ${configResponse.status}`);
+    }
     const configData = await configResponse.json();
 
     // 获取自定义配置
     const customResponse = await fetch('/config/custom_string');
+    if (!customResponse.ok) {
+      throw new Error(`Custom config API failed: ${customResponse.status}`);
+    }
     const customData = await customResponse.json();
 
     // 检查API响应结构
@@ -1000,20 +1109,41 @@ async function loadConfig() {
     // 加载趋势类型
     if (configs.trendType) {
       trendType.value = configs.trendType;
+      console.log('加载趋势类型:', configs.trendType);
     }
 
     // 加载多项式阶数
     if (configs.polyDegree) {
       polyDegree.value = parseInt(configs.polyDegree);
+      console.log('加载多项式阶数:', configs.polyDegree);
     }
 
     // 加载测距点数据
     if (configs.distancePoints) {
-      points.value = JSON.parse(configs.distancePoints);
+      try {
+        const parsedPoints = JSON.parse(configs.distancePoints);
+        if (Array.isArray(parsedPoints) && parsedPoints.length > 0) {
+          points.value = parsedPoints;
+          console.log('加载测距点数据:', parsedPoints.length, '个点');
+        } else {
+          throw new Error('解析的点数据无效');
+        }
+      } catch (parseError) {
+        console.error('解析测距点数据失败:', parseError);
+        points.value = [...defaultPoints];
+        await savePoints();
+      }
     } else {
       // 如果没有保存的数据，使用默认值并保存
+      console.log('使用默认测距点数据');
       points.value = [...defaultPoints];
       await savePoints();
+    }
+
+    // 确保点数据有效
+    if (!Array.isArray(points.value) || points.value.length === 0) {
+      console.warn('点数据无效，使用默认值');
+      points.value = [...defaultPoints];
     }
 
     // 初始化矫正状态数组
@@ -1105,21 +1235,36 @@ async function loadConfig() {
     // 加载后重新计算拟合（如果没有保存的拟合公式）
     if (configs.fitting_equation) {
       equation.value = configs.fitting_equation;
+      console.log('加载保存的拟合公式:', configs.fitting_equation);
       // 如果有保存的拟合公式，尝试从中提取R²值
       // 这里可以添加更复杂的逻辑来解析保存的公式
     } else {
       // 没有保存的拟合公式，重新计算
+      console.log('没有保存的拟合公式，开始重新计算...');
       computeFit();
     }
+
+    console.log('配置加载完成');
   } catch (error) {
     console.error('Failed to load config:', error);
     // 出错时使用默认值
+    console.log('加载配置失败，使用默认值');
     points.value = [...defaultPoints];
     // 初始化矫正状态数组
     calibrating.value = new Array(points.value.length).fill(false);
-    computeFit();
+
+    // 确保即使出错也要计算拟合
+    try {
+      computeFit();
+    } catch (fitError) {
+      console.error('默认拟合计算也失败:', fitError);
+      // 设置一个基本的默认公式
+      equation.value = 'y = 524.38x^-1.003';
+      r2.value = 0;
+    }
   } finally {
     configLoading.value = false;
+    console.log('配置加载状态重置为false');
   }
 }
 
@@ -1613,9 +1758,31 @@ watch(
 
 // 组件挂载时加载配置
 onMounted(() => {
-  void loadConfig();
-  // 启动实时距离监控
-  startRealTimeMonitoring();
+  console.log('SettingsPage 组件挂载');
+
+  // 重置状态
+  configLoading.value = true;
+  equation.value = '';
+  r2.value = 0;
+  fitResults.value = [];
+
+  // 加载配置
+  void loadConfig()
+    .then(() => {
+      console.log('配置加载完成，开始实时监控');
+      // 启动实时距离监控
+      startRealTimeMonitoring();
+    })
+    .catch((error) => {
+      console.error('配置加载失败:', error);
+      configLoading.value = false;
+    });
+});
+
+// 组件卸载时清理
+onUnmounted(() => {
+  console.log('SettingsPage 组件卸载，清理资源');
+  stopRealTimeMonitoring();
 });
 </script>
 
