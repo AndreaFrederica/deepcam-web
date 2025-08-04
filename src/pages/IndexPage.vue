@@ -29,13 +29,13 @@
             <q-btn
               color="primary"
               label="获取测量数据"
-              @click="getMeasurements"
+              @click="() => getMeasurements()"
               :loading="measurementsLoading"
             />
             <q-btn
               color="secondary"
               label="最小边缘"
-              @click="getMinimumSquareMeasurements"
+              @click="() => getMinimumSquareMeasurements()"
               :loading="minSquareLoading"
             />
           </div>
@@ -423,7 +423,7 @@ import { reactive, ref, onMounted, onUnmounted, watch, onActivated } from 'vue';
 const formula = ref<string>('');
 const correctionFactor = ref<number>(1);
 
-const DEFAULT_FORMULA = '((524.38/x)**(1/1.003))*100';
+const DEFAULT_FORMULA = '((524.38/x)**(1/1.003))';
 const DEFAULT_FACTOR = 1.0261;
 
 async function loadConfigs() {
@@ -479,7 +479,7 @@ const minSquareLoading = ref(false);
 const ocrTargetText = ref('');
 const ocrLoading = ref(false);
 const ocrElapsedTime = ref(0);
-const ocrMethod = ref(0); // 0: ocr_measurement_analysis, 1: ocr_masked_analysis, 2: ocr_masked_measurement_analysis, 3: ocr_scaled_measurement_analysis
+const ocrMethod = ref(5); // 0: ocr_measurement_analysis, 1: ocr_masked_analysis, 2: ocr_masked_measurement_analysis, 3: ocr_scaled_measurement_analysis
 
 // 过滤器相关
 const showDetailedInfo = ref(false);
@@ -546,7 +546,9 @@ function computeDistance(px: number) {
   try {
     // 替换公式中的 x 为实际像素值
     const formulaWithValue = formula.value.replace(/x/g, px.toString());
-    return eval(formulaWithValue);
+    const result = eval(formulaWithValue);
+    // 乘以100将米转换为厘米
+    return result * 100;
   } catch (error) {
     console.error('计算距离时出错:', error, '公式:', formula.value, '像素:', px);
     return 0;
@@ -572,94 +574,138 @@ async function getPower() {
   }
 }
 
-// 获取物理测量数据
-async function getMeasurements() {
+// 获取物理测量数据 - 带重试机制
+async function getMeasurements(maxRetries = 10, retryDelay = 100) {
   measurementsLoading.value = true;
-  try {
-    const response = await fetch('/api/physical_measurements');
-    const data = await response.json();
+  let attempt = 0;
 
-    if (data.success) {
-      measurements.value = data.measurements || [];
-      a4Reference.value = data.a4_reference || null;
-    } else {
-      console.error('获取测量数据失败:', data);
-      measurements.value = [];
+  while (attempt < maxRetries) {
+    try {
+      attempt++;
+      console.log(`尝试获取物理测量数据 - 第 ${attempt} 次`);
+
+      const response = await fetch('/api/physical_measurements');
+      const data = await response.json();
+
+      if (data.success && data.measurements && data.measurements.length > 0) {
+        // 成功获取到数据
+        measurements.value = data.measurements;
+        a4Reference.value = data.a4_reference || null;
+        console.log(`✓ 成功获取物理测量数据，共 ${data.measurements.length} 个测量结果`);
+        break;
+      } else {
+        console.warn(`第 ${attempt} 次尝试：未获取到有效测量数据`);
+
+        // 如果是最后一次尝试，设置空数据
+        if (attempt >= maxRetries) {
+          console.error('达到最大重试次数，未能获取到有效数据');
+          measurements.value = [];
+          a4Reference.value = null;
+          break;
+        }
+
+        // 等待后重试
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
+    } catch (error) {
+      console.error(`第 ${attempt} 次尝试获取测量数据时出错:`, error);
+
+      // 如果是最后一次尝试，设置空数据
+      if (attempt >= maxRetries) {
+        measurements.value = [];
+        a4Reference.value = null;
+        break;
+      }
+
+      // 等待后重试
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
-  } catch (error) {
-    console.error('获取测量数据时出错:', error);
-    measurements.value = [];
-  } finally {
-    measurementsLoading.value = false;
   }
+
+  measurementsLoading.value = false;
 }
 
 // 获取最小正方形测量数据
-async function getMinimumSquareMeasurements() {
+async function getMinimumSquareMeasurements(maxRetries = 10, retryDelay = 100) {
   minSquareLoading.value = true;
-  try {
-    const response = await fetch('/api/minimum_square');
-    const data = await response.json();
 
-    if (data.found) {
-      // 将最短边数据格式转换为兼容现有显示格式
-      const convertedMeasurements = [
-        {
-          crop_index: 1,
-          target: {
-            id: 1,
-            crop_width: Math.abs(data.end_point[0] - data.start_point[0]),
-            crop_height: Math.abs(data.end_point[1] - data.start_point[1]),
-            area:
-              Math.abs(data.end_point[0] - data.start_point[0]) *
-              Math.abs(data.end_point[1] - data.start_point[1]),
-            new_long_px: data.edge_length_px,
-          },
-          shapes: [
-            {
-              shape_index: 1,
-              shape_type: `Minimum Edge (${data.type})`,
-              pixel_dimensions: {
-                width: data.edge_length_px, // 边长像素值
-                height: 0, // 边长没有高度
-                area: 0, // 边长没有面积
-                side_lengths: [data.edge_length_px],
-                mean_side_length: data.edge_length_px,
-                perimeter: 0, // 边长没有周长
-              },
-              physical_dimensions: {
-                width_mm: data.edge_length_mm, // 边长毫米值
-                height_mm: 0, // 边长没有高度
-                area_mm2: 0, // 边长没有面积
-                diameter_mm: 0,
-                side_lengths_mm: [data.edge_length_mm],
-                mean_side_length_mm: data.edge_length_mm,
-                perimeter_mm: 0, // 边长没有周长
-                measurement_type: 'minimum_edge',
-                mm_per_pixel: data.edge_length_mm / data.edge_length_px,
-              },
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      const response = await fetch('/api/minimum_square');
+      const data = await response.json();
+
+      if (data.found) {
+        // 将最短边数据格式转换为兼容现有显示格式
+        const convertedMeasurements = [
+          {
+            crop_index: 1,
+            target: {
+              id: 1,
+              crop_width: Math.abs(data.end_point[0] - data.start_point[0]),
+              crop_height: Math.abs(data.end_point[1] - data.start_point[1]),
+              area:
+                Math.abs(data.end_point[0] - data.start_point[0]) *
+                Math.abs(data.end_point[1] - data.start_point[1]),
+              new_long_px: data.edge_length_px,
             },
-          ],
-        },
-      ];
+            shapes: [
+              {
+                shape_index: 1,
+                shape_type: `Minimum Edge (${data.type})`,
+                pixel_dimensions: {
+                  width: data.edge_length_px, // 边长像素值
+                  height: 0, // 边长没有高度
+                  area: 0, // 边长没有面积
+                  side_lengths: [data.edge_length_px],
+                  mean_side_length: data.edge_length_px,
+                  perimeter: 0, // 边长没有周长
+                },
+                physical_dimensions: {
+                  width_mm: data.edge_length_mm, // 边长毫米值
+                  height_mm: 0, // 边长没有高度
+                  area_mm2: 0, // 边长没有面积
+                  diameter_mm: 0,
+                  side_lengths_mm: [data.edge_length_mm],
+                  mean_side_length_mm: data.edge_length_mm,
+                  perimeter_mm: 0, // 边长没有周长
+                  measurement_type: 'minimum_edge',
+                  mm_per_pixel: data.edge_length_mm / data.edge_length_px,
+                },
+              },
+            ],
+          },
+        ];
 
-      measurements.value = convertedMeasurements;
-      a4Reference.value = {
-        physical_width_mm: data.edge_length_mm,
-        physical_height_mm: data.edge_length_mm,
-        note: `在中心 (${data.center[0]}, ${data.center[1]}) 检测到最小边缘，长度: ${data.edge_length_mm.toFixed(2)}mm`,
-      };
-    } else {
-      console.error('未找到最小边缘:', data);
-      measurements.value = [];
-      a4Reference.value = null;
+        measurements.value = convertedMeasurements;
+        a4Reference.value = {
+          physical_width_mm: data.edge_length_mm,
+          physical_height_mm: data.edge_length_mm,
+          note: `在中心 (${data.center[0]}, ${data.center[1]}) 检测到最小边缘，长度: ${data.edge_length_mm.toFixed(2)}mm`,
+        };
+        minSquareLoading.value = false;
+        return; // 成功获取数据，退出重试循环
+      } else {
+        // 如果没有找到数据且还有重试次数，等待后重试
+        if (attempt < maxRetries - 1) {
+          console.log(`最小边长测量第 ${attempt + 1} 次尝试未找到数据，${retryDelay}ms 后重试...`);
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        }
+      }
+    } catch (error) {
+      console.error(`最小边长测量第 ${attempt + 1} 次尝试失败:`, error);
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
     }
-  } catch (error) {
-    console.error('获取最小边缘测量数据时出错:', error);
-    measurements.value = [];
-  } finally {
-    minSquareLoading.value = false;
+    attempt++;
   }
+
+  // 所有重试都失败后
+  console.error(`最小边长测量在 ${maxRetries} 次尝试后仍未获取到数据`);
+  measurements.value = [];
+  a4Reference.value = null;
+  minSquareLoading.value = false;
 }
 
 async function getOrWaitOcrMeasurements() {
