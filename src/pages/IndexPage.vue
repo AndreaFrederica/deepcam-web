@@ -52,6 +52,24 @@
                 @click="showVirtualKeyboard = !showVirtualKeyboard"
                 :outline="!showVirtualKeyboard"
               />
+              <q-select
+                v-model="ocrMethod"
+                :options="[
+                  { label: 'OCR测量', value: 0 },
+                  { label: 'OCR遮罩测量', value: 1 },
+                  { label: 'OCR缩放遮罩测量', value: 2 },
+                  { label: 'OCR缩放测量', value: 3 },
+                  { label: 'YOLO自动分割测量', value: 4 },
+                ]"
+                option-label="label"
+                option-value="value"
+                emit-value
+                map-options
+                dense
+                outlined
+                style="min-width: 150px"
+                label="识别方法"
+              />
               <q-spinner-gears color="primary" size="2em" v-show="ocrLoading && fucked" />
             </div>
           </div>
@@ -100,6 +118,11 @@
       <!-- 测量结果区 -->
       <div class="col-6">
         <q-card flat bordered class="q-pa-md">
+          <div>
+            <p>距离公式：{{ formula }}</p>
+            <p>校正系数：{{ correctionFactor }}</p>
+            <q-btn label="重新加载配置" @click="loadConfigs" />
+          </div>
           <!-- 测量结果展示 -->
           <div v-if="measurements.length > 0" class="q-mt-md">
             <!-- 过滤器控制 -->
@@ -394,13 +417,35 @@
 
 <script setup lang="ts">
 import { useQuasar } from 'quasar';
-import { reactive, ref, onMounted, onUnmounted, watch } from 'vue';
+import { reactive, ref, onMounted, onUnmounted, watch, onActivated } from 'vue';
 
-// 距离公式 - 默认使用标准的距离公式格式
-const formula = ref('((524.38/x)**(1/1.003))*100');
+const formula = ref<string>('');
+const correctionFactor = ref<number>(1);
 
-// 边长修正系数
-const correctionFactor = ref<number>(1.0261);
+const DEFAULT_FORMULA = '((524.38/x)**(1/1.003))*100';
+const DEFAULT_FACTOR = 1.0261;
+
+async function loadConfigs() {
+  try {
+    const res = await fetch('/config/custom_string');
+    const { success, custom_config } = await res.json();
+    if (success) {
+      formula.value = custom_config.distance_formula || DEFAULT_FORMULA;
+      correctionFactor.value = parseFloat(custom_config.correction_factor) || DEFAULT_FACTOR;
+    } else {
+      formula.value = DEFAULT_FORMULA;
+      correctionFactor.value = DEFAULT_FACTOR;
+    }
+  } catch (e) {
+    console.error('加载配置失败', e);
+    formula.value = DEFAULT_FORMULA;
+    correctionFactor.value = DEFAULT_FACTOR;
+  }
+}
+
+// 首次挂载和每次激活都重新拉
+onMounted(loadConfigs);
+onActivated(loadConfigs);
 
 const stats = reactive({
   count: 0,
@@ -433,6 +478,7 @@ const minSquareLoading = ref(false);
 const ocrTargetText = ref('');
 const ocrLoading = ref(false);
 const ocrElapsedTime = ref(0);
+const ocrMethod = ref(0); // 0: ocr_measurement_analysis, 1: ocr_masked_analysis, 2: ocr_masked_measurement_analysis, 3: ocr_scaled_measurement_analysis
 
 // 过滤器相关
 const showDetailedInfo = ref(false);
@@ -649,7 +695,23 @@ async function getOrWaitOcrMeasurements() {
 async function getOcrMeasurements() {
   ocrLoading.value = true;
   try {
-    const response = await fetch('/api/ocr_measurement_analysis');
+    // 根据选择的方法确定API端点
+    const apiEndpoints = [
+      '/api/ocr_measurement_analysis', // 0
+      '/api/ocr_masked_analysis', // 1
+      '/api/ocr_masked_measurement_analysis', // 2
+      '/api/ocr_scaled_measurement_analysis', // 3
+      '/api/ocr_auto_segment_analysis', //4
+    ];
+    const endpoint =
+      apiEndpoints[
+        typeof ocrMethod.value === 'number' &&
+        ocrMethod.value >= 0 &&
+        ocrMethod.value < apiEndpoints.length
+          ? ocrMethod.value
+          : 0
+      ];
+    const response = await fetch(<string>endpoint);
     // const response = await fetch('/api/ocr');
     const data = await response.json();
 

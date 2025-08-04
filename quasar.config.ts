@@ -85,27 +85,27 @@ export default defineConfig((/* ctx */) => {
       open: true, // opens browser window automatically
       proxy: {
         '/api': {
-          target: 'http://192.168.33.215:8000',
+          target: 'http://192.168.240.45:8000',
           changeOrigin: true,
           secure: false,
         },
         '/control': {
-          target: 'http://192.168.33.215:8000',
+          target: 'http://192.168.240.45:8000',
           changeOrigin: true,
           secure: false,
         },
         '/video': {
-          target: 'http://192.168.33.215:8000',
+          target: 'http://192.168.240.45:8000',
           changeOrigin: true,
           secure: false,
         },
         '/config': {
-          target: 'http://192.168.33.215:8000',
+          target: 'http://192.168.240.45:8000',
           changeOrigin: true,
           secure: false,
         },
         '/ws': {
-          target: 'http://192.168.33.215:8000',
+          target: 'http://192.168.240.45:8000',
           changeOrigin: true,
           secure: false,
           ws: true, // Enable WebSocket proxying
