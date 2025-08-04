@@ -143,7 +143,11 @@
               <div class="text-subtitle2">裁剪区域 {{ crop.crop_index }}</div>
 
               <!-- Target 信息 -->
-              <q-card v-if="crop.target" class="q-mb-sm q-pa-sm" style="border-radius: 4px">
+              <q-card
+                v-if="crop.target"
+                class="q-mb-sm q-pa-sm target-card"
+                style="border-radius: 4px"
+              >
                 <div>
                   <strong>目标 #{{ crop.target.id }}</strong>
                 </div>
@@ -157,7 +161,7 @@
               <q-card
                 v-for="shape in crop.shapes"
                 :key="shape.shape_index"
-                class="q-mb-sm q-pa-sm"
+                :class="['q-mb-sm q-pa-sm', getShapeCardClass(shape)]"
                 style="border-radius: 4px"
               >
                 <div class="text-weight-bold">{{ shape.shape_type }} #{{ shape.shape_index }}</div>
@@ -306,7 +310,7 @@
             <!-- A4 参考信息 - 根据过滤器显示 -->
             <div
               v-if="showDetailedInfo && a4Reference"
-              class="q-mt-md q-pa-sm"
+              class="q-mt-md q-pa-sm a4-reference-card"
               style="border-radius: 4px"
             >
               <div class="text-caption text-weight-bold">A4 参考:</div>
@@ -553,6 +557,32 @@ function computeDistance(px: number) {
     console.error('计算距离时出错:', error, '公式:', formula.value, '像素:', px);
     return 0;
   }
+}
+
+// 根据形状类型返回对应的CSS类名
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getShapeCardClass(shape: any) {
+  // 边缘检测
+  if (shape.physical_dimensions.measurement_type === 'minimum_edge') {
+    return 'edge-detection-card';
+  }
+
+  // 圆形
+  if (
+    shape.shape_type.toLowerCase().includes('circle') ||
+    shape.shape_type.toLowerCase().includes('圆') ||
+    shape.shape_type.toLowerCase().includes('round')
+  ) {
+    return 'circle-card';
+  }
+
+  // OCR检测到的形状
+  if (shape.ocr_data && shape.ocr_data.detected) {
+    return 'ocr-detected-card';
+  }
+
+  // 普通形状
+  return 'normal-shape-card';
 }
 
 async function getPower() {
@@ -1008,5 +1038,66 @@ $q.dark.set(true); // 设置为暗黑模式
   .keyboard-key-primary {
     min-width: 70px;
   }
+}
+
+/* 测量结果卡片着色样式 - 适配暗黑模式 */
+.target-card {
+  background: linear-gradient(
+    135deg,
+    rgba(33, 150, 243, 0.15) 0%,
+    rgba(156, 39, 176, 0.1) 100%
+  ) !important;
+  border-left: 4px solid #2196f3 !important;
+  border: 1px solid rgba(33, 150, 243, 0.3) !important;
+}
+
+.edge-detection-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 152, 0, 0.15) 0%,
+    rgba(255, 193, 7, 0.1) 100%
+  ) !important;
+  border-left: 4px solid #ff9800 !important;
+  border: 1px solid rgba(255, 152, 0, 0.3) !important;
+}
+
+.circle-card {
+  background: linear-gradient(
+    135deg,
+    rgba(76, 175, 80, 0.15) 0%,
+    rgba(139, 195, 74, 0.1) 100%
+  ) !important;
+  border-left: 4px solid #4caf50 !important;
+  border: 1px solid rgba(76, 175, 80, 0.3) !important;
+}
+
+.ocr-detected-card {
+  background: linear-gradient(
+    135deg,
+    rgba(156, 39, 176, 0.15) 0%,
+    rgba(233, 30, 99, 0.1) 100%
+  ) !important;
+  border-left: 4px solid #9c27b0 !important;
+  border: 1px solid rgba(156, 39, 176, 0.3) !important;
+}
+
+.normal-shape-card {
+  background: linear-gradient(
+    135deg,
+    rgba(117, 117, 117, 0.1) 0%,
+    rgba(158, 158, 158, 0.05) 100%
+  ) !important;
+  border-left: 4px solid #757575 !important;
+  border: 1px solid rgba(117, 117, 117, 0.3) !important;
+}
+
+.a4-reference-card {
+  background: linear-gradient(
+    135deg,
+    rgba(244, 67, 54, 0.15) 0%,
+    rgba(255, 87, 34, 0.1) 100%
+  ) !important;
+  border-left: 4px solid #f44336 !important;
+  border: 1px solid rgba(244, 67, 54, 0.3) !important;
 }
 </style>
