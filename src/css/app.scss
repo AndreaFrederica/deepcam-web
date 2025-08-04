@@ -1,1 +1,140 @@
 // app global css in SCSS form
+
+// 橙色主题自定义样式
+.q-page {
+  background: linear-gradient(135deg, #1d1d1d 0%, #2d1810 100%);
+}
+
+.q-card {
+  background: rgba(255, 109, 0, 0.05);
+  border: 1px solid rgba(255, 109, 0, 0.1);
+}
+
+.q-card .q-card__section {
+  background: rgba(255, 109, 0, 0.02);
+}
+
+// 按钮样式增强
+.q-btn--standard.q-btn--rectangle .q-btn__content {
+  color: #ffffff;
+}
+
+.q-btn.bg-primary {
+  background: linear-gradient(45deg, #ff6d00 0%, #ff8f00 100%);
+  box-shadow: 0 3px 10px rgba(255, 109, 0, 0.3);
+}
+
+.q-btn.bg-primary:hover {
+  background: linear-gradient(45deg, #ff8f00 0%, #ffab40 100%);
+  box-shadow: 0 5px 15px rgba(255, 109, 0, 0.4);
+}
+
+.q-btn.bg-secondary {
+  background: linear-gradient(45deg, #ff8f00 0%, #ffab40 100%);
+}
+
+// 输入框样式
+.q-field--outlined .q-field__control:before {
+  border-color: rgba(255, 109, 0, 0.3);
+}
+
+.q-field--outlined.q-field--focused .q-field__control:before {
+  border-color: #ff6d00;
+  border-width: 2px;
+}
+
+// 选择器样式
+.q-select .q-field__control:before {
+  border-color: rgba(255, 109, 0, 0.3);
+}
+
+.q-select.q-field--focused .q-field__control:before {
+  border-color: #ff6d00;
+}
+
+// 分隔线样式
+.q-separator {
+  background-color: rgba(255, 109, 0, 0.2);
+}
+
+// 文本颜色
+.text-subtitle2 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.text-caption {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+// 强调文本
+strong {
+  color: #ffab40;
+}
+
+// 加载器样式
+.q-spinner-gears {
+  color: #ff6d00 !important;
+}
+
+// 虚拟键盘样式增强
+.virtual-keyboard {
+  background: #1d1d1d !important;  // 强制设置不透明背景
+}
+
+.virtual-keyboard .q-card__section {
+  background: #1d1d1d !important;  // 确保所有区域都不透明
+}
+
+.virtual-keyboard .q-card__section.bg-primary {
+  background: linear-gradient(45deg, #ff6d00 0%, #ff8f00 100%) !important;
+}
+
+.keyboard-key {
+  background: rgba(255, 109, 0, 0.1);
+  border: 1px solid rgba(255, 109, 0, 0.3);
+  color: #ffffff;
+}
+
+.keyboard-key:hover {
+  background: rgba(255, 109, 0, 0.2);
+  border-color: #ff6d00;
+}
+
+.keyboard-key-primary.q-btn {
+  background: linear-gradient(45deg, #ff6d00 0%, #ff8f00 100%);
+}
+
+// 对话框样式
+.q-dialog__inner {
+  background: #1d1d1d;  // 完全不透明
+}
+
+.q-dialog__backdrop {
+  background: #1d1d1d;  // 完全不透明
+}
+
+// 虚拟键盘全屏遮罩
+.q-dialog--maximized .virtual-keyboard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: #1d1d1d;  // 完全不透明的深色背景
+}
+
+// 数值显示增强
+.q-page .row .col-6 div div:has(strong) {
+  padding: 2px 0;
+}
+
+// 卡片边框光效
+.q-card {
+  box-shadow: 0 2px 12px rgba(255, 109, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.q-card:hover {
+  box-shadow: 0 4px 20px rgba(255, 109, 0, 0.2);
+}

@@ -20,10 +20,10 @@
           <!-- 物理测量 -->
           <div class="flex">
             <div class="text-subtitle2">物理测量</div>
-            <div class="text-subtitle2">&nbsp;| 当前电压 {{ voltage.toFixed(3) }} V</div>
-            <div class="text-subtitle2">&nbsp;| 当前电流 {{ current.toFixed(3) }} A</div>
-            <div class="text-subtitle2">&nbsp;| 当前功率 {{ power.toFixed(3) }} W |</div>
-            <div class="text-subtitle2">&nbsp;最大功率 {{ maxPower.toFixed(3) }} W</div>
+            <div class="text-subtitle2">&nbsp;| Voltage {{ voltage.toFixed(3) }} V</div>
+            <div class="text-subtitle2">&nbsp;| Current {{ current.toFixed(3) }} A</div>
+            <div class="text-subtitle2">&nbsp;| Power {{ power.toFixed(3) }} W |</div>
+            <div class="text-subtitle2">&nbsp;Max Power {{ maxPower.toFixed(3) }} W</div>
           </div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn
@@ -335,7 +335,14 @@
     </div>
 
     <!-- 软键盘弹窗 -->
-    <q-dialog v-model="showVirtualKeyboard" position="standard" maximized full-width full-height>
+    <q-dialog
+      v-model="showVirtualKeyboard"
+      position="standard"
+      maximized
+      full-width
+      full-height
+      no-backdrop-dismiss
+    >
       <q-card class="virtual-keyboard">
         <q-card-section class="row items-center q-pa-sm bg-primary text-white">
           <div class="text-h6">虚拟键盘</div>
@@ -423,7 +430,7 @@ import { reactive, ref, onMounted, onUnmounted, watch, onActivated } from 'vue';
 const formula = ref<string>('');
 const correctionFactor = ref<number>(1);
 
-const DEFAULT_FORMULA = '((524.38/x)**(1/1.003))*100';
+const DEFAULT_FORMULA = '((524.38/x)**(1/1.003))';
 const DEFAULT_FACTOR = 1.0261;
 
 async function loadConfigs() {
@@ -546,7 +553,12 @@ function computeDistance(px: number) {
   try {
     // 替换公式中的 x 为实际像素值
     const formulaWithValue = formula.value.replace(/x/g, px.toString());
-    return eval(formulaWithValue);
+    const result = eval(formulaWithValue);
+    // 如果公式中没有包含*100，则手动乘以100
+    if (!formula.value.includes('*100')) {
+      return result * 100;
+    }
+    return result;
   } catch (error) {
     console.error('计算距离时出错:', error, '公式:', formula.value, '像素:', px);
     return 0;
@@ -915,15 +927,24 @@ $q.dark.set(true); // 设置为暗黑模式
 
 /* 软键盘样式 */
 .virtual-keyboard {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+}
+
+.virtual-keyboard .q-card__section {
   width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .keyboard-layout {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 .keyboard-row {

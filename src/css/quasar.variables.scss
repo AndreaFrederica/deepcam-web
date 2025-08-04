@@ -12,14 +12,14 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-$primary: #1976d2;
-$secondary: #26a69a;
-$accent: #9c27b0;
+$primary: #ff6d00; // 橙色主色调
+$secondary: #ff8f00; // 次级橙色
+$accent: #ffab40; // 强调色 - 浅橙色
 
 $dark: #1d1d1d;
 $dark-page: #121212;
 
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
-$warning: #f2c037;
+$positive: #66bb6a; // 绿色保持不变
+$negative: #f44336; // 红色调整为更现代的红色
+$info: #29b6f6; // 蓝色调整
+$warning: #ffa726; // 警告色改为橙色系
