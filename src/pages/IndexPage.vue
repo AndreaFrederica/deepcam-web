@@ -60,6 +60,7 @@
                   { label: 'OCR缩放遮罩测量', value: 2 },
                   { label: 'OCR缩放测量', value: 3 },
                   { label: 'YOLO自动分割测量', value: 4 },
+                  { label: 'OCR自动分割测量', value: 5 },
                 ]"
                 option-label="label"
                 option-value="value"
@@ -702,6 +703,7 @@ async function getOcrMeasurements() {
       '/api/ocr_masked_measurement_analysis', // 2
       '/api/ocr_scaled_measurement_analysis', // 3
       '/api/ocr_auto_segment_analysis', //4
+      '/api/ocr_auto_segment_easyocr_analysis', // 5
     ];
     const endpoint =
       apiEndpoints[
