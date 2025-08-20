@@ -17,6 +17,7 @@
   "dependencies": {
     "@quasar/extras": "^1.16.4",
     "chart.js": "^4.5.0",
+    "pnpm": "^10.15.0",
     "quasar": "^2.16.0",
     "regression": "^2.0.1",
     "vue": "^3.4.18",

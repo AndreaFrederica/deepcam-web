@@ -107,8 +107,12 @@
             </div>
             <div>外框: {{ r.outer_width }}×{{ r.outer_height }}</div>
             <div>面积: {{ r.area }}px</div>
-            <div>新边: {{ r.new_long_px.toFixed(1) }}px</div>
-            <div>距离: {{ computeDistance(r.new_long_px).toFixed(1) }} cm</div>
+            <div>
+              新边: {{ (r.target?.new_long_px ?? r.new_long_px).toFixed(1) }}px
+            </div>
+            <div>
+              距离: {{ computeDistance(r.target?.new_long_px ?? r.new_long_px).toFixed(1) }} cm
+            </div>
             <div>形状: {{ r.shape_type }}</div>
             <div>内框: {{ r.inner_width }}×{{ r.inner_height }} (面积 {{ r.inner_area }}px)</div>
             <div>信息: {{ r.inner_info }}</div>
@@ -544,15 +548,70 @@ function handleFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement;
 }
 
+// 最小正方形 API 类型定义
+type Point = [number, number];
+
+interface MinimumSquareEdge {
+  shape_index?: number;
+  found: boolean;
+  center?: Point;
+  edge_length_px?: number;
+  edge_length_mm?: number;
+  type?: string;
+  start_point?: Point;
+  end_point?: Point;
+  pixel_dimensions?: {
+    edge_length?: number;
+    note?: string;
+  };
+  physical_dimensions?: {
+    edge_length_mm?: number;
+    mm_per_pixel?: number;
+    note?: string;
+  };
+}
+
+interface MinimumSquareTarget {
+  id: number;
+  bbox?: [number, number, number, number];
+  area?: number;
+  aspect_ratio?: number;
+  crop_width?: number;
+  crop_height?: number;
+  position?: Point;
+  horizontal_avg?: number;
+  vertical_avg?: number;
+  new_long_px?: number;
+}
+
+interface MinimumSquareMeasurement {
+  crop_index: number;
+  target: MinimumSquareTarget;
+  edges: MinimumSquareEdge[];
+}
+
+interface A4ReferenceInfo {
+  physical_width_mm: number;
+  physical_height_mm: number;
+  note?: string;
+}
+
+interface MinimumSquareApiResponse {
+  success: boolean;
+  measurements: MinimumSquareMeasurement[];
+  total_crops?: number;
+  a4_reference?: A4ReferenceInfo | null;
+}
+
 // 计算距离：使用拟合公式进行逆运算
 function computeDistance(px: number) {
   // 将像素高度传入公式计算距离
   try {
     // 替换公式中的 x 为实际像素值
     const formulaWithValue = formula.value.replace(/x/g, px.toString());
-    const result = eval(formulaWithValue);
-    // 乘以100将米转换为厘米
-    return result * 100;
+  const result = eval(formulaWithValue);
+  // 直接返回公式结果；请确保 distance_formula 已按目标单位（建议 cm）输出
+  return result;
   } catch (error) {
     console.error('计算距离时出错:', error, '公式:', formula.value, '像素:', px);
     return 0;
@@ -655,70 +714,83 @@ async function getMeasurements(maxRetries = 10, retryDelay = 100) {
   measurementsLoading.value = false;
 }
 
-// 获取最小正方形测量数据
+// 获取最小正方形测量数据（使用裁剪区域的长边 new_long_px 计算距离）
 async function getMinimumSquareMeasurements(maxRetries = 10, retryDelay = 100) {
   minSquareLoading.value = true;
 
   let attempt = 0;
   while (attempt < maxRetries) {
     try {
-      const response = await fetch('/api/minimum_square');
-      const data = await response.json();
+  const response = await fetch('/api/minimum_square_measurements');
+  const data: MinimumSquareApiResponse = await response.json();
 
-      if (data.found) {
-        // 将最短边数据格式转换为兼容现有显示格式
-        const convertedMeasurements = [
-          {
-            crop_index: 1,
-            target: {
-              id: 1,
-              crop_width: Math.abs(data.end_point[0] - data.start_point[0]),
-              crop_height: Math.abs(data.end_point[1] - data.start_point[1]),
-              area:
-                Math.abs(data.end_point[0] - data.start_point[0]) *
-                Math.abs(data.end_point[1] - data.start_point[1]),
-              new_long_px: data.edge_length_px,
-            },
-            shapes: [
-              {
-                shape_index: 1,
-                shape_type: `Minimum Edge (${data.type})`,
+      if (data && data.success && Array.isArray(data.measurements) && data.measurements.length > 0) {
+        // 将返回的 measurements 映射为前端显示结构
+        const convertedMeasurements = data.measurements.map((m: MinimumSquareMeasurement) => {
+          const target: MinimumSquareTarget = m.target || ({} as MinimumSquareTarget);
+          const cropWidth = target.crop_width ?? 0;
+          const cropHeight = target.crop_height ?? 0;
+          const newLongPx = target.new_long_px ?? Math.max(cropWidth, cropHeight);
+
+          // 将每条边缘映射为一个 shape（minimum_edge）
+          const shapes = (m.edges ?? [])
+            .filter((e: MinimumSquareEdge) => e && e.found)
+            .map((e: MinimumSquareEdge, idx: number) => {
+              const edgePx = e.edge_length_px ?? e.pixel_dimensions?.edge_length ?? 0;
+              const edgeMm = e.edge_length_mm ?? e.physical_dimensions?.edge_length_mm ?? 0;
+              const mmPerPx =
+                e.physical_dimensions?.mm_per_pixel ?? (edgePx > 0 ? edgeMm / edgePx : 0);
+              return {
+                shape_index: e.shape_index ?? idx,
+                shape_type: `Minimum Edge (${e.type ?? 'unknown'})`,
                 pixel_dimensions: {
-                  width: data.edge_length_px, // 边长像素值
-                  height: 0, // 边长没有高度
-                  area: 0, // 边长没有面积
-                  side_lengths: [data.edge_length_px],
-                  mean_side_length: data.edge_length_px,
-                  perimeter: 0, // 边长没有周长
+                  width: edgePx,
+                  height: 0,
+                  area: 0,
+                  side_lengths: [edgePx],
+                  mean_side_length: edgePx,
+                  perimeter: 0,
                 },
                 physical_dimensions: {
-                  width_mm: data.edge_length_mm, // 边长毫米值
-                  height_mm: 0, // 边长没有高度
-                  area_mm2: 0, // 边长没有面积
+                  width_mm: edgeMm,
+                  height_mm: 0,
+                  area_mm2: 0,
                   diameter_mm: 0,
-                  side_lengths_mm: [data.edge_length_mm],
-                  mean_side_length_mm: data.edge_length_mm,
-                  perimeter_mm: 0, // 边长没有周长
+                  side_lengths_mm: [edgeMm],
+                  mean_side_length_mm: edgeMm,
+                  perimeter_mm: 0,
                   measurement_type: 'minimum_edge',
-                  mm_per_pixel: data.edge_length_mm / data.edge_length_px,
+                  mm_per_pixel: mmPerPx,
                 },
-              },
-            ],
-          },
-        ];
+              };
+            });
+
+          return {
+            crop_index: m.crop_index ?? 0,
+            target: {
+              id: target.id ?? 0,
+              bbox: target.bbox,
+              crop_width: cropWidth,
+              crop_height: cropHeight,
+              area: target.area ?? cropWidth * cropHeight,
+              position: target.position,
+              horizontal_avg: target.horizontal_avg,
+              vertical_avg: target.vertical_avg,
+              new_long_px: newLongPx, // 用于距离计算
+            },
+            shapes,
+          };
+        });
 
         measurements.value = convertedMeasurements;
-        a4Reference.value = {
-          physical_width_mm: data.edge_length_mm,
-          physical_height_mm: data.edge_length_mm,
-          note: `在中心 (${data.center[0]}, ${data.center[1]}) 检测到最小边缘，长度: ${data.edge_length_mm.toFixed(2)}mm`,
-        };
+        a4Reference.value = data.a4_reference || null;
         minSquareLoading.value = false;
         return; // 成功获取数据，退出重试循环
       } else {
-        // 如果没有找到数据且还有重试次数，等待后重试
         if (attempt < maxRetries - 1) {
-          console.log(`最小边长测量第 ${attempt + 1} 次尝试未找到数据，${retryDelay}ms 后重试...`);
+          console.log(
+            `最小边长测量第 ${attempt + 1} 次尝试未找到数据，${retryDelay}ms 后重试...`,
+          );
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
         }
       }
@@ -781,15 +853,15 @@ async function getOcrMeasurements() {
       '/api/ocr_auto_segment_analysis', //4
       '/api/ocr_auto_segment_easyocr_analysis', // 5
     ];
-    const endpoint =
-      apiEndpoints[
-        typeof ocrMethod.value === 'number' &&
-        ocrMethod.value >= 0 &&
-        ocrMethod.value < apiEndpoints.length
-          ? ocrMethod.value
-          : 0
-      ];
-    const response = await fetch(<string>endpoint);
+    const idx =
+      typeof ocrMethod.value === 'number' &&
+      ocrMethod.value >= 0 &&
+      ocrMethod.value < apiEndpoints.length
+        ? ocrMethod.value
+        : 0;
+  const safeIdx = Math.min(Math.max(idx, 0), apiEndpoints.length - 1);
+  const endpoint = String(apiEndpoints[safeIdx] ?? '/api/ocr_measurement_analysis');
+  const response = await fetch(endpoint);
     // const response = await fetch('/api/ocr');
     const data = await response.json();
 
